@@ -2,13 +2,99 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>Analisi Referto Medico</title>
+    <title>Referto Medico AI</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #f4f6f8;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 700px;
+            margin: 50px auto;
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+        }
+        input[type="file"] {
+            display: block;
+            margin: 20px auto;
+        }
+        button {
+            display: block;
+            margin: 10px auto;
+            padding: 10px 20px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        #result {
+            margin-top: 30px;
+        }
+        .section {
+            margin-bottom: 20px;
+        }
+        .section h2 {
+            color: #34495e;
+        }
+        .section pre {
+            background-color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+        }
+    </style>
 </head>
 <body>
-    <h1>Carica il tuo referto</h1>
-    <form action="/upload" method="post" enctype="multipart/form-data">
-        <input type="file" name="file" required>
-        <button type="submit">Analizza</button>
-    </form>
+    <div class="container">
+        <h1>🩺 Referto Medico AI</h1>
+        <form id="uploadForm" enctype="multipart/form-data">
+            <input type="file" name="file" required>
+            <button type="submit">Analizza Referto</button>
+        </form>
+
+        <div id="result" style="display:none;">
+            <div class="section">
+                <h2>Riassunto Semplificato</h2>
+                <pre id="summaryText"></pre>
+            </div>
+            <div class="section">
+                <h2>Testo Integrale</h2>
+                <pre id="fullText"></pre>
+            </div>
+            <button onclick="window.location.href='/download-summary'">📥 Scarica Documento Word</button>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('uploadForm');
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            const response = await fetch('/upload', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            if (data.summary) {
+                document.getElementById('summaryText').textContent = data.summary;
+                document.getElementById('fullText').textContent = data.full_text;
+                document.getElementById('result').style.display = 'block';
+            } else {
+                alert('Errore: ' + data.error);
+            }
+        });
+    </script>
 </body>
 </html>
