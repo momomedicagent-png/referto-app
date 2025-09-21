@@ -1,0 +1,9 @@
+Flask
+python-dotenv
+pytesseract
+Pillow
+python-docx
+PyMuPDF
+google-generativeai
+openpyxl
+pandas

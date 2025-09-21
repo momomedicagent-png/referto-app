@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: referto-medico-app
+    env: python
+    buildCommand: ""
+    startCommand: python app.py
+    envVars:
+      - key: GOOGLE_API_KEY
+        value: <AIzaSyAMwK02PrH1vEJxJPgk4g7sFv9Ifsi4UvE>
