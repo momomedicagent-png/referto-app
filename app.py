@@ -1,33 +1,27 @@
 import os
 import pytesseract
-#import openai
-import google.generativeai as genai # Aggiungi l'import di Gemini
-#import gemini
+import google.generativeai as genai
 from PIL import Image
 from flask import Flask, render_template, request, jsonify, send_file
 from docx import Document
 import fitz  # PyMuPDF
 from dotenv import load_dotenv
-#import google.generativeai as genai
 
-# Specify the full path to the Tesseract executable
+# Percorso Tesseract (solo per ambiente locale Windows)
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
-
-# Carica la chiave API dal file .env
+# Carica la chiave API Gemini
 load_dotenv()
-#openai.api_key = os.getenv("OPENAI_API_KEY")
-# Configura l'API di Gemini con la chiave caricata
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-# Configurazione di Flask
+# Configurazione Flask
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
 ARCHIVE_FOLDER = 'archive'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(ARCHIVE_FOLDER, exist_ok=True)
 
-# Funzione per estrarre testo da un'immagine o PDF
+# Estrazione testo da vari formati
 def extract_text_from_file(file_path):
     ext = os.path.splitext(file_path)[1].lower()
     text = ""
@@ -62,7 +56,7 @@ def extract_text_from_file(file_path):
 
     return text
 
-# Funzione per generare il riassunto con Gemini
+# Riassunto con Gemini
 def generate_summary(text):
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
@@ -73,8 +67,7 @@ def generate_summary(text):
     except Exception as e:
         return f"Errore nella generazione del riassunto: {e}"
 
-
-# Funzione per creare il file Word
+# Creazione file Word
 def create_word_doc(summary, full_text):
     doc = Document()
     doc.add_heading('Riassunto Referto Medico', 0)
@@ -87,28 +80,23 @@ def create_word_doc(summary, full_text):
     doc.save(file_path)
     return file_path
 
+# Rotte Flask
 @app.route('/')
 def home():
     return render_template('index.html')
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    if 'file' not in request.files:
+    if 'file' not in request.files or request.files['file'].filename == '':
         return jsonify({"error": "Nessun file selezionato"}), 400
     
     file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "Nessun file selezionato"}), 400
-    
     filename = file.filename
     filepath = os.path.join(UPLOAD_FOLDER, filename)
     file.save(filepath)
 
-    # Estrazione e analisi
     full_text = extract_text_from_file(filepath)
     simple_summary = generate_summary(full_text)
-    
-    # Crea e salva il file Word
     word_path = create_word_doc(simple_summary, full_text)
 
     return jsonify({
@@ -121,5 +109,7 @@ def download_summary():
     file_path = os.path.join(ARCHIVE_FOLDER, "riassunto_referto.docx")
     return send_file(file_path, as_attachment=True)
 
+# Avvio compatibile con Render
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
