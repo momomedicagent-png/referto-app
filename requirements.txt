@@ -7,3 +7,4 @@ PyMuPDF
 google-generativeai
 openpyxl
 pandas
+requests

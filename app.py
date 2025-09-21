@@ -22,6 +22,8 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(ARCHIVE_FOLDER, exist_ok=True)
 
 # Estrazione testo da vari formati
+import requests
+
 def extract_text_from_file(file_path):
     ext = os.path.splitext(file_path)[1].lower()
     text = ""
@@ -33,7 +35,21 @@ def extract_text_from_file(file_path):
         doc.close()
 
     elif ext in ['.png', '.jpg', '.jpeg']:
-        text = pytesseract.image_to_string(Image.open(file_path), lang='ita')
+        with open(file_path, 'rb') as f:
+            response = requests.post(
+                'https://api.ocr.space/parse/image',
+                files={'file': f},
+                data={'apikey': 'helloworld', 'language': 'ita'}
+            )
+        result = response.json()
+        if result.get('IsErroredOnProcessing'):
+            text = "Errore OCR: " + result.get('ErrorMessage', [''])[0]
+        else:
+            parsed_results = result.get('ParsedResults', [])
+            if parsed_results:
+                text = parsed_results[0].get('ParsedText', '')
+            else:
+                text = "Nessun testo rilevato."
 
     elif ext == '.txt':
         with open(file_path, 'r', encoding='utf-8') as f:
