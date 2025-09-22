@@ -3,4 +3,6 @@ services:
     name: referto-medico-app
     env: docker
     plan: free
-    
+    dockerfilePath: ./Dockerfile
+    buildCommand: ""
+    startCommand: ""

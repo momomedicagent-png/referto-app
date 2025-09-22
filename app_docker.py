@@ -19,7 +19,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 🔐 Carica chiave API Gemini
+# 🔑 Carica chiave API Gemini
 load_dotenv()
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
@@ -29,6 +29,34 @@ UPLOAD_FOLDER = 'uploads'
 ARCHIVE_FOLDER = 'archive'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(ARCHIVE_FOLDER, exist_ok=True)
+
+# 🔧 Configurazione Tesseract per Docker
+def configure_tesseract():
+    """Configura Tesseract per l'ambiente Docker"""
+    try:
+        # Test se Tesseract è disponibile
+        pytesseract.get_tesseract_version()
+        logger.info("Tesseract configurato correttamente")
+        
+        # Verifica lingue disponibili
+        langs = pytesseract.get_languages()
+        logger.info(f"Lingue Tesseract disponibili: {langs}")
+        
+    except Exception as e:
+        logger.error(f"Errore configurazione Tesseract: {e}")
+        # Fallback: prova percorsi comuni in Docker
+        possible_paths = [
+            '/usr/bin/tesseract',
+            '/usr/local/bin/tesseract'
+        ]
+        for path in possible_paths:
+            if os.path.exists(path):
+                pytesseract.pytesseract.tesseract_cmd = path
+                logger.info(f"Tesseract trovato in: {path}")
+                break
+
+# Configura Tesseract all'avvio
+configure_tesseract()
 
 # 📄 Estrazione testo da file
 def extract_text_from_file(file_path):
@@ -44,7 +72,17 @@ def extract_text_from_file(file_path):
             logger.info("Testo estratto da PDF")
 
         elif ext in ['.png', '.jpg', '.jpeg']:
-            text = pytesseract.image_to_string(Image.open(file_path), lang='ita')
+            # Configurazione migliorata per Tesseract
+            image = Image.open(file_path)
+            
+            # Converti in RGB se necessario
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+            
+            # Configura Tesseract con parametri ottimizzati
+            custom_config = r'--oem 3 --psm 6 -l ita+eng'
+            text = pytesseract.image_to_string(image, config=custom_config)
+            
             logger.info("Testo estratto da immagine con Tesseract")
 
         elif ext == '.txt':
@@ -71,23 +109,39 @@ def extract_text_from_file(file_path):
             logger.warning(f"Formato non supportato: {ext}")
 
     except Exception as e:
-        text = f"Errore OCR interno: {e}"
+        text = f"Errore nell'estrazione del testo: {str(e)}"
         logger.error(f"Errore durante l'estrazione del testo: {e}")
 
-    return text
+    return text.strip() if text else "Nessun testo estratto"
 
 # 🧠 Riassunto con Gemini
 def generate_summary(text):
+    if not text or text.strip() == "":
+        return "Nessun testo da riassumere"
+    
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
-        response = model.generate_content(
-            f"Riassumi questo referto medico in un linguaggio semplice. Evidenzia i valori fuori dalla norma, la diagnosi principale e le raccomandazioni del medico. Sii conciso. Il referto è:\n\n{text}"
-        )
+        prompt = f"""
+        Analizza questo referto medico e fornisci un riassunto chiaro e comprensibile.
+        
+        Includi:
+        - Diagnosi principale (se presente)
+        - Valori anomali evidenziati
+        - Raccomandazioni mediche
+        - Note importanti per il paziente
+        
+        Usa un linguaggio semplice e accessibile.
+        
+        Testo del referto:
+        {text}
+        """
+        
+        response = model.generate_content(prompt)
         logger.info("Riassunto generato con Gemini")
         return response.text
     except Exception as e:
         logger.error(f"Errore Gemini: {e}")
-        return f"Errore nella generazione del riassunto: {e}"
+        return f"Errore nella generazione del riassunto: {str(e)}"
 
 # 📄 Creazione file Word
 def create_word_doc(summary, full_text):
@@ -114,24 +168,41 @@ def home():
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    if 'file' not in request.files or request.files['file'].filename == '':
-        logger.warning("Nessun file selezionato")
-        return jsonify({"error": "Nessun file selezionato"}), 400
+    try:
+        if 'file' not in request.files or request.files['file'].filename == '':
+            logger.warning("Nessun file selezionato")
+            return jsonify({"error": "Nessun file selezionato"}), 400
+        
+        file = request.files['file']
+        filename = file.filename
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        file.save(filepath)
+        logger.info(f"File ricevuto: {filename}")
+
+        # Estrai testo
+        full_text = extract_text_from_file(filepath)
+        logger.info(f"Testo estratto (lunghezza: {len(full_text)})")
+        
+        # Genera riassunto
+        simple_summary = generate_summary(full_text)
+        
+        # Crea documento Word
+        word_path = create_word_doc(simple_summary, full_text)
+
+        # Pulisci file temporanei
+        try:
+            os.remove(filepath)
+        except:
+            pass
+
+        return jsonify({
+            "summary": simple_summary,
+            "full_text": full_text
+        })
     
-    file = request.files['file']
-    filename = file.filename
-    filepath = os.path.join(UPLOAD_FOLDER, filename)
-    file.save(filepath)
-    logger.info(f"File ricevuto: {filename}")
-
-    full_text = extract_text_from_file(filepath)
-    simple_summary = generate_summary(full_text)
-    word_path = create_word_doc(simple_summary, full_text)
-
-    return jsonify({
-        "summary": simple_summary,
-        "full_text": full_text
-    })
+    except Exception as e:
+        logger.error(f"Errore in upload_file: {e}")
+        return jsonify({"error": f"Errore del server: {str(e)}"}), 500
 
 @app.route('/download-summary')
 def download_summary():
@@ -142,7 +213,22 @@ def download_summary():
         logger.error("File Word non trovato per il download")
         return jsonify({"error": "File non disponibile"}), 404
 
+# 🔧 Endpoint di debug per Tesseract
+@app.route('/debug/tesseract')
+def debug_tesseract():
+    try:
+        version = pytesseract.get_tesseract_version()
+        langs = pytesseract.get_languages()
+        return jsonify({
+            "tesseract_version": str(version),
+            "available_languages": langs,
+            "tesseract_cmd": pytesseract.pytesseract.tesseract_cmd
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 # 🚀 Avvio compatibile con Render
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    logger.info(f"Avvio app sulla porta {port}")
+    app.run(host='0.0.0.0', port=port, debug=False)
