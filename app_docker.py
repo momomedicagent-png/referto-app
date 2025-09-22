@@ -21,12 +21,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # 🔑 Carica variabili ambiente
-load_dotenv()
+#load_dotenv()
 
 # 🔑 Client OpenRouter (usa OPENAI_API_KEY con valore sk-or-...)
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
-    api_key=os.getenv("OPENAI_API_KEY"),
+    api_key=os.getenv("OPENROUTER_API_KEY"),
 )
 
 # ⚙️ Flask
