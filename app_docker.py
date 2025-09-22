@@ -12,11 +12,11 @@ from datetime import datetime
 import cv2
 import numpy as np
 from openai import OpenAI
-
+import os
 
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
-    #api_key=os.getenv("OPENROUTER_API_KEY"),
+    api_key=os.getenv("OPENAI_API_KEY"),  # legge la tua chiave
 )
 
 # 🔧 Logging
