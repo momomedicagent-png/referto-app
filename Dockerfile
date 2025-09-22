@@ -22,4 +22,4 @@ ENV PORT=5000
 EXPOSE $PORT
 
 # Avvia l'app
-CMD ["python", "app.py"]
+CMD ["python", "app_docker.py"]
