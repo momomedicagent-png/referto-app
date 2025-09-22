@@ -167,7 +167,7 @@ def generate_summary(text):
         """
 
         completion = client.chat.completions.create(
-            model="openai/gpt-4o",
+            model="openai/gpt-4o-mini",
             extra_headers={
                 "HTTP-Referer": "https://referto-app.onrender.com",
                 "X-Title": "Assistente Referti"
