@@ -2,98 +2,82 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>Referto Medico AI</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assistente Documenti Salute</title>
     <style>
-        body {
-            font-family: 'Segoe UI', sans-serif;
-            background-color: #f4f6f8;
-            margin: 0;
-            padding: 0;
-        }
-        .container {
-            max-width: 700px;
-            margin: 50px auto;
-            background-color: #ffffff;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 0 15px rgba(0,0,0,0.1);
-        }
-        h1 {
-            text-align: center;
-            color: #2c3e50;
-        }
-        input[type="file"] {
-            display: block;
-            margin: 20px auto;
-        }
-        button {
-            display: block;
-            margin: 10px auto;
-            padding: 10px 20px;
-            background-color: #3498db;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #2980b9;
-        }
-        #result {
-            margin-top: 30px;
-        }
-        .section {
-            margin-bottom: 20px;
-        }
-        .section h2 {
-            color: #34495e;
-        }
-        .section pre {
-            background-color: #ecf0f1;
-            padding: 15px;
-            border-radius: 5px;
-            white-space: pre-wrap;
-        }
+        body { font-family: sans-serif; text-align: center; margin: 2em; background-color: #f0f4f8; color: #333; }
+        .container { max-width: 800px; margin: auto; padding: 2em; background: white; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        h1 { color: #007bff; }
+        .upload-area { border: 2px dashed #ccc; padding: 2em; border-radius: 10px; cursor: pointer; }
+        .results-area { margin-top: 2em; text-align: left; }
+        pre { background-color: #eee; padding: 1em; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word; }
+        button { padding: 10px 20px; font-size: 16px; border-radius: 5px; border: none; cursor: pointer; margin: 5px; }
+        #downloadBtn { background-color: #28a745; color: white; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🩺 Referto Medico AI</h1>
-        <form id="uploadForm" enctype="multipart/form-data">
-            <input type="file" name="file" required>
-            <button type="submit">Analizza Referto</button>
-        </form>
+        <h1>Assistente Documenti Salute</h1>
+        <p>Carica il tuo referto medico (PDF o immagine) per ottenere un riassunto semplice.</p>
+        
+        <div class="upload-area" onclick="document.getElementById('fileInput').click();">
+            <p><strong>Clicca o trascina qui il tuo file</strong></p>
+            <input type="file" id="fileInput" name="file" accept=".pdf,.jpg,.jpeg,.png" style="display: none;">
+        </div>
 
-        <div id="result" style="display:none;">
-            <div class="section">
-                <h2>Riassunto Semplificato</h2>
-                <pre id="summaryText"></pre>
-            </div>
-            <div class="section">
-                <h2>Testo Integrale</h2>
-                <pre id="fullText"></pre>
-            </div>
-            <button onclick="window.location.href='/download-summary'">📥 Scarica Documento Word</button>
+        <div id="loadingMessage" style="display: none; color: #007bff; margin-top: 1em;">Elaborazione in corso...</div>
+
+        <div id="results" class="results-area" style="display: none;">
+            <h2>Riassunto Semplice</h2>
+            <p id="summaryText"></p>
+            <hr>
+            <h2>Testo Integrale</h2>
+            <pre id="fullText"></pre>
+            <button id="downloadBtn">Scarica Riassunto (Word)</button>
         </div>
     </div>
 
     <script>
-        const form = document.getElementById('uploadForm');
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const formData = new FormData(form);
-            const response = await fetch('/upload', {
-                method: 'POST',
-                body: formData
-            });
-            const data = await response.json();
-            if (data.summary) {
-                document.getElementById('summaryText').textContent = data.summary;
-                document.getElementById('fullText').textContent = data.full_text;
-                document.getElementById('result').style.display = 'block';
-            } else {
-                alert('Errore: ' + data.error);
+        const fileInput = document.getElementById('fileInput');
+        const loadingMessage = document.getElementById('loadingMessage');
+        const resultsArea = document.getElementById('results');
+        const summaryText = document.getElementById('summaryText');
+        const fullText = document.getElementById('fullText');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        fileInput.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            loadingMessage.style.display = 'block';
+            resultsArea.style.display = 'none';
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData,
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    summaryText.textContent = data.summary;
+                    fullText.textContent = data.full_text;
+                    resultsArea.style.display = 'block';
+                } else {
+                    alert('Errore: ' + data.error);
+                }
+            } catch (error) {
+                alert('Si è verificato un errore di rete.');
+            } finally {
+                loadingMessage.style.display = 'none';
             }
+        });
+
+        downloadBtn.addEventListener('click', () => {
+            window.location.href = '/download-summary';
         });
     </script>
 </body>
