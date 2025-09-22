@@ -8,11 +8,12 @@ from docx import Document
 import fitz  # PyMuPDF
 from dotenv import load_dotenv
 
-# 🔧 Logging strutturato
+# 🔧 Logging su console e file
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
     handlers=[
+        logging.FileHandler("app.log"),
         logging.StreamHandler()
     ]
 )
@@ -90,17 +91,21 @@ def generate_summary(text):
 
 # 📄 Creazione file Word
 def create_word_doc(summary, full_text):
-    doc = Document()
-    doc.add_heading('Riassunto Referto Medico', 0)
-    doc.add_paragraph(summary)
-    doc.add_page_break()
-    doc.add_heading('Testo Integrale', level=1)
-    doc.add_paragraph(full_text)
-    
-    file_path = os.path.join(ARCHIVE_FOLDER, "riassunto_referto.docx")
-    doc.save(file_path)
-    logger.info("Documento Word creato")
-    return file_path
+    try:
+        doc = Document()
+        doc.add_heading('Riassunto Referto Medico', 0)
+        doc.add_paragraph(summary)
+        doc.add_page_break()
+        doc.add_heading('Testo Integrale', level=1)
+        doc.add_paragraph(full_text)
+        
+        file_path = os.path.join(ARCHIVE_FOLDER, "riassunto_referto.docx")
+        doc.save(file_path)
+        logger.info("Documento Word creato")
+        return file_path
+    except Exception as e:
+        logger.error(f"Errore nella creazione del documento Word: {e}")
+        return None
 
 # 🌐 Rotte Flask
 @app.route('/')
@@ -131,7 +136,11 @@ def upload_file():
 @app.route('/download-summary')
 def download_summary():
     file_path = os.path.join(ARCHIVE_FOLDER, "riassunto_referto.docx")
-    return send_file(file_path, as_attachment=True)
+    if os.path.exists(file_path):
+        return send_file(file_path, as_attachment=True)
+    else:
+        logger.error("File Word non trovato per il download")
+        return jsonify({"error": "File non disponibile"}), 404
 
 # 🚀 Avvio compatibile con Render
 if __name__ == '__main__':
