@@ -1,1 +1,11 @@
-"api_key.env" 
+# File sensibili
+*.env
+api_key.env
+
+# File generati
+*.log
+__pycache__/
+*.pyc
+uploads/
+archive/
+*.docx

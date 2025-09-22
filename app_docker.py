@@ -3,13 +3,15 @@ import logging
 import pytesseract
 import google.generativeai as genai
 from PIL import Image
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
 from docx import Document
 import fitz  # PyMuPDF
 from dotenv import load_dotenv
 import traceback
 import json
 from datetime import datetime
+import cv2
+import numpy as np
 
 # 🔧 Logging su console e file
 logging.basicConfig(
@@ -33,21 +35,17 @@ ARCHIVE_FOLDER = 'archive'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(ARCHIVE_FOLDER, exist_ok=True)
 
+
 # 🔧 Configurazione Tesseract per Docker
 def configure_tesseract():
     """Configura Tesseract per l'ambiente Docker"""
     try:
-        # Test se Tesseract è disponibile
         pytesseract.get_tesseract_version()
         logger.info("Tesseract configurato correttamente")
-        
-        # Verifica lingue disponibili
         langs = pytesseract.get_languages()
         logger.info(f"Lingue Tesseract disponibili: {langs}")
-        
     except Exception as e:
         logger.error(f"Errore configurazione Tesseract: {e}")
-        # Fallback: prova percorsi comuni in Docker
         possible_paths = [
             '/usr/bin/tesseract',
             '/usr/local/bin/tesseract'
@@ -58,8 +56,25 @@ def configure_tesseract():
                 logger.info(f"Tesseract trovato in: {path}")
                 break
 
-# Configura Tesseract all'avvio
+
 configure_tesseract()
+
+
+# 🔧 Preprocessing immagini per OCR più veloce/accurato
+def preprocess_image_for_ocr(image_path):
+    img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    if img is None:
+        return None
+    # Binarizzazione adattiva
+    img = cv2.adaptiveThreshold(
+        img, 255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY, 31, 2
+    )
+    # Rimozione rumore
+    img = cv2.medianBlur(img, 3)
+    return img
+
 
 # 📄 Estrazione testo da file
 def extract_text_from_file(file_path):
@@ -75,18 +90,18 @@ def extract_text_from_file(file_path):
             logger.info("Testo estratto da PDF")
 
         elif ext in ['.png', '.jpg', '.jpeg']:
-            # Configurazione migliorata per Tesseract
-            image = Image.open(file_path)
-            
-            # Converti in RGB se necessario
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
-            
-            # Configura Tesseract con parametri ottimizzati
-            custom_config = r'--oem 3 --psm 6 -l ita+eng'
-            text = pytesseract.image_to_string(image, config=custom_config)
-            
-            logger.info("Testo estratto da immagine con Tesseract")
+            preprocessed = preprocess_image_for_ocr(file_path)
+            if preprocessed is not None:
+                custom_config = r'--oem 1 --psm 6 -l ita+eng'
+                text = pytesseract.image_to_string(preprocessed, config=custom_config)
+                logger.info("Testo estratto da immagine preprocessata con Tesseract")
+            else:
+                image = Image.open(file_path)
+                if image.mode != 'RGB':
+                    image = image.convert('RGB')
+                custom_config = r'--oem 1 --psm 6 -l ita+eng'
+                text = pytesseract.image_to_string(image, config=custom_config)
+                logger.info("Testo estratto da immagine con Tesseract (senza preprocessing)")
 
         elif ext == '.txt':
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -118,6 +133,7 @@ def extract_text_from_file(file_path):
 
     return text.strip() if text else "Nessun testo estratto"
 
+
 # 🧠 Riassunto con Gemini
 def generate_summary(text):
     if not text or text.strip() == "":
@@ -127,15 +143,15 @@ def generate_summary(text):
         model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = f"""
         Analizza questo referto medico e fornisci un riassunto chiaro e comprensibile.
-        
+
         Includi:
         - Diagnosi principale (se presente)
         - Valori anomali evidenziati
         - Raccomandazioni mediche
         - Note importanti per il paziente
-        
+
         Usa un linguaggio semplice e accessibile.
-        
+
         Testo del referto:
         {text}
         """
@@ -147,6 +163,7 @@ def generate_summary(text):
         logger.error(f"Errore Gemini: {e}")
         logger.error(traceback.format_exc())
         return f"Errore nella generazione del riassunto: {str(e)}"
+
 
 # 📄 Creazione file Word
 def create_word_doc(summary, full_text):
@@ -167,10 +184,13 @@ def create_word_doc(summary, full_text):
         logger.error(traceback.format_exc())
         return None
 
+
 # 🌐 Rotte Flask
 @app.route('/')
 def home():
-    return render_template('index.html')
+    # Usa index.html statico se non è in templates/
+    return send_from_directory('.', 'index.html')
+
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -191,7 +211,6 @@ def upload_file():
         full_text = extract_text_from_file(filepath)
         logger.info(f"Testo estratto (lunghezza: {len(full_text)})")
         
-        # Log delle prime 200 caratteri per debug
         logger.info(f"Prime 200 caratteri: {full_text[:200]}...")
         
         # Genera riassunto
@@ -201,7 +220,7 @@ def upload_file():
         
         # Crea documento Word
         logger.info("Creazione documento Word...")
-        word_path = create_word_doc(simple_summary, full_text)
+        create_word_doc(simple_summary, full_text)
 
         # Pulisci file temporanei
         try:
@@ -210,27 +229,11 @@ def upload_file():
         except:
             logger.warning("Impossibile rimuovere file temporaneo")
 
-        # Prepara risposta
-        response_data = {
+        return jsonify({
             "summary": simple_summary,
             "full_text": full_text,
             "status": "success"
-        }
-        
-        logger.info("=== PREPARAZIONE RISPOSTA ===")
-        logger.info(f"Lunghezza summary: {len(simple_summary)}")
-        logger.info(f"Lunghezza full_text: {len(full_text)}")
-        
-        # Test serializzazione JSON
-        try:
-            json_test = json.dumps(response_data, ensure_ascii=False)
-            logger.info("JSON serializzato correttamente")
-        except Exception as json_err:
-            logger.error(f"Errore serializzazione JSON: {json_err}")
-            return jsonify({"error": "Errore nella serializzazione della risposta"}), 500
-        
-        logger.info("=== INVIO RISPOSTA ===")
-        return jsonify(response_data)
+        })
     
     except Exception as e:
         logger.error(f"ERRORE CRITICO in upload_file: {e}")
@@ -239,6 +242,7 @@ def upload_file():
             "error": f"Errore del server: {str(e)}",
             "traceback": traceback.format_exc()
         }), 500
+
 
 @app.route('/download-summary')
 def download_summary():
@@ -250,7 +254,7 @@ def download_summary():
         logger.error("File Word non trovato per il download")
         return jsonify({"error": "File non disponibile"}), 404
 
-# 🔧 Endpoint di debug per Tesseract
+
 @app.route('/debug/tesseract')
 def debug_tesseract():
     try:
@@ -264,7 +268,7 @@ def debug_tesseract():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# 🔧 Endpoint di test connessione
+
 @app.route('/test')
 def test():
     return jsonify({
@@ -272,6 +276,7 @@ def test():
         "message": "Server funzionante",
         "timestamp": str(datetime.now())
     })
+
 
 # 🚀 Avvio compatibile con Render
 if __name__ == '__main__':

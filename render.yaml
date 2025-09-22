@@ -2,9 +2,9 @@ services:
   - type: web
     name: assistente-documenti-salute
     env: docker
-    plan: free  # puoi cambiarlo se hai bisogno di più risorse
-    region: frankfurt  # oppure us-east/oregon, scegli quella più vicina
+    plan: free
+    region: frankfurt  # puoi cambiare a us-east o oregon se preferisci
     dockerfilePath: ./Dockerfile
     envVars:
       - key: GOOGLE_API_KEY
-        sync: false   # la chiave la imposti dalla dashboard di Render
+        sync: false   # la chiave la imposti da Dashboard di Render
