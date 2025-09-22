@@ -11,6 +11,13 @@ import traceback
 from datetime import datetime
 import cv2
 import numpy as np
+from openai import OpenAI
+
+
+client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=os.getenv("OPENROUTER_API_KEY"),
+)
 
 # 🔧 Logging
 logging.basicConfig(
@@ -22,7 +29,9 @@ logger = logging.getLogger(__name__)
 
 # 🔑 API Gemini
 load_dotenv()
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+
+#genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+genai.configure(api_key=os.getenv("OPENROUTER_API_KEY"))
 
 # ⚙️ Flask
 app = Flask(__name__, template_folder="templates")
@@ -148,7 +157,7 @@ def generate_summary(text):
     if not text.strip():
         return "Nessun testo da riassumere"
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+       # model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = f"""
         Analizza questo referto medico e fornisci un riassunto chiaro e comprensibile.
 
@@ -161,12 +170,30 @@ def generate_summary(text):
         Testo del referto:
         {text}
         """
-        response = model.generate_content(prompt)
-        return response.text
+        ####Sotto è il codice per Gemini#####
+        #response = model.generate_content(prompt)
+        #return response.text
+    #except Exception as e:
+     #   logger.error(traceback.format_exc())
+      #  return f"Errore generazione riassunto: {str(e)}"
+
+        completion = client.chat.completions.create(
+            model="openai/gpt-4o",  # oppure un altro modello supportato
+            extra_headers={
+                "HTTP-Referer": "https://tua-app.com",  # opzionale
+                "X-Title": "Assistente Referti",        # opzionale
+            },
+            messages=[
+                {"role": "system", "content": "Sei un assistente che semplifica referti medici."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+
+        return completion.choices[0].message.content.strip()
+
     except Exception as e:
         logger.error(traceback.format_exc())
         return f"Errore generazione riassunto: {str(e)}"
-
 
 # 📄 Word
 def create_word_doc(summary, full_text):
