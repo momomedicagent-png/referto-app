@@ -30,8 +30,11 @@ def extract_text_from_file(file_path):
         doc.close()
 
     elif ext in ['.png', '.jpg', '.jpeg']:
-        text = pytesseract.image_to_string(Image.open(file_path), lang='ita')
-
+        try:
+            text = pytesseract.image_to_string(Image.open(file_path), lang='ita')
+        except Exception as e:
+            text = f"Errore OCR interno: {e}"
+            
     elif ext == '.txt':
         with open(file_path, 'r', encoding='utf-8') as f:
             text = f.read()
