@@ -2,183 +2,78 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>Referto Medico AI</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', sans-serif;
-            background-color: #f4f6f8;
-            margin: 0;
-            padding: 0;
-        }
-        .container {
-            max-width: 800px;
-            margin: 50px auto;
-            background-color: #ffffff;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 0 15px rgba(0,0,0,0.1);
-        }
-        h1 {
-            text-align: center;
-            color: #2c3e50;
-        }
-        input[type="file"] {
-            display: block;
-            margin: 20px auto;
-        }
-        button {
-            display: block;
-            margin: 10px auto;
-            padding: 10px 20px;
-            background-color: #3498db;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #2980b9;
-        }
-        .section {
-            margin-top: 30px;
-        }
-        .section h2 {
-            color: #34495e;
-        }
-        .section pre {
-            background-color: #ecf0f1;
-            padding: 15px;
-            border-radius: 5px;
-            white-space: pre-wrap;
-        }
-        .info, .error {
-            font-size: 0.9em;
-            margin-top: 10px;
-            text-align: center;
-        }
-        .info {
-            color: #7f8c8d;
-        }
-        .error {
-            color: #e74c3c;
-            font-weight: bold;
-        }
-        #preview {
-            display: block;
-            margin: 20px auto;
-            max-width: 100%;
-            border-radius: 8px;
-            box-shadow: 0 0 8px rgba(0,0,0,0.1);
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🩺 Referto Medico AI</h1>
-        <form id="uploadForm" enctype="multipart/form-data">
-            <input type="file" name="file" id="fileInput" required>
-            <button type="submit">Analizza Referto</button>
-        </form>
-
-        <img id="preview" style="display:none;" alt="Anteprima immagine">
-        <div id="fileInfo" class="info" style="display:none;"></div>
-        <div id="errorMessage" class="error" style="display:none;"></div>
-
-        <div id="result" style="display:none;">
-            <div class="section">
-                <h2>Riassunto Semplificato</h2>
-                <pre id="summaryText"></pre>
-            </div>
-            <div class="section">
-                <h2>Testo Integrale</h2>
-                <pre id="fullText"></pre>
-            </div>
-            <button onclick="window.location.href='/download-summary'">📥 Scarica Documento Word</button>
-        </div>
-    </div>
-
-    <script>
-        const form = document.getElementById('uploadForm');
-        const fileInput = document.getElementById('fileInput');
-        const fileInfo = document.getElementById('fileInfo');
-        const errorMessage = document.getElementById('errorMessage');
-        const preview = document.getElementById('preview');
-
-        fileInput.addEventListener('change', () => {
-            const file = fileInput.files[0];
-            if (!file) return;
-
-            fileInfo.innerHTML = `📄 File selezionato: <strong>${file.name}</strong><br>
-                                  Tipo: ${file.type || 'N/D'}<br>
-                                  Dimensione: ${(file.size / 1024).toFixed(2)} KB`;
-            fileInfo.style.display = 'block';
-            errorMessage.style.display = 'none';
-
-            if (file.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onload = () => {
-                    preview.src = reader.result;
-                    preview.style.display = 'block';
-                };
-                reader.readAsDataURL(file);
-            } else {
-                preview.style.display = 'none';
-            }
-        });
-
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const file = fileInput.files[0];
-            if (!file) return;
-
-            const formData = new FormData();
-            formData.append('file', file);
-
-            try {
-                const response = await fetch('/upload', {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await response.json();
-
-                if (data.error) {
-                    errorMessage.textContent = "❌ Errore: " + data.error;
-                    errorMessage.style.display = 'block';
-                    document.getElementById('result').style.display = 'none';
-                } else {
-                    document.getElementById('summaryText').textContent = data.summary;
-                    document.getElementById('fullText').textContent = data.full_text;
-                    document.getElementById('result').style.display = 'block';
-                }
-            } catch (err) {
-                errorMessage.textContent = "❌ Errore di rete o server.";
-                errorMessage.style.display = 'block';
-            }
-        });
-    </script>
-</body>
-</html>
-=======
-<!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Assistente Documenti Salute</title>
     <style>
-        body { font-family: sans-serif; text-align: center; margin: 2em; background-color: #f0f4f8; color: #333; }
-        .container { max-width: 800px; margin: auto; padding: 2em; background: white; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        body { 
+            font-family: sans-serif; 
+            text-align: center; 
+            margin: 2em; 
+            background-color: #f0f4f8; 
+            color: #333; 
+        }
+        .container { 
+            max-width: 800px; 
+            margin: auto; 
+            padding: 2em; 
+            background: white; 
+            border-radius: 10px; 
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
+        }
         h1 { color: #007bff; }
-        .upload-area { border: 2px dashed #ccc; padding: 2em; border-radius: 10px; cursor: pointer; }
-        .results-area { margin-top: 2em; text-align: left; }
-        pre { background-color: #eee; padding: 1em; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word; }
-        button { padding: 10px 20px; font-size: 16px; border-radius: 5px; border: none; cursor: pointer; margin: 5px; }
-        #downloadBtn { background-color: #28a745; color: white; }
+        .upload-area { 
+            border: 2px dashed #ccc; 
+            padding: 2em; 
+            border-radius: 10px; 
+            cursor: pointer; 
+        }
+        .results-area { 
+            margin-top: 2em; 
+            text-align: left; 
+        }
+        pre { 
+            background-color: #eee; 
+            padding: 1em; 
+            border-radius: 5px; 
+            white-space: pre-wrap; 
+            word-wrap: break-word; 
+        }
+        button { 
+            padding: 10px 20px; 
+            font-size: 16px; 
+            border-radius: 5px; 
+            border: none; 
+            cursor: pointer; 
+            margin: 5px; 
+        }
+        #downloadBtn { 
+            background-color: #28a745; 
+            color: white; 
+        }
+        .error { 
+            background-color: #f8d7da; 
+            color: #721c24; 
+            padding: 1em; 
+            border-radius: 5px; 
+            margin: 1em 0; 
+        }
+        .debug { 
+            background-color: #d1ecf1; 
+            color: #0c5460; 
+            padding: 1em; 
+            border-radius: 5px; 
+            margin: 1em 0; 
+            text-align: left; 
+        }
+        .loading {
+            color: #007bff;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Assistente Documenti Salute</h1>
+        <h1>🩺 Assistente Documenti Salute</h1>
         <p>Carica il tuo referto medico (PDF o immagine) per ottenere un riassunto semplice.</p>
         
         <div class="upload-area" onclick="document.getElementById('fileInput').click();">
@@ -186,15 +81,35 @@
             <input type="file" id="fileInput" name="file" accept=".pdf,.jpg,.jpeg,.png" style="display: none;">
         </div>
 
-        <div id="loadingMessage" style="display: none; color: #007bff; margin-top: 1em;">Elaborazione in corso...</div>
+        <div id="loadingMessage" style="display: none;" class="loading">
+            Elaborazione in corso... Questo potrebbe richiedere alcuni minuti.
+        </div>
+
+        <div id="debugInfo" class="debug" style="display: none;">
+            <h3>🔍 Info Debug</h3>
+            <div id="debugContent"></div>
+        </div>
+
+        <div id="errorMessage" class="error" style="display: none;"></div>
 
         <div id="results" class="results-area" style="display: none;">
-            <h2>Riassunto Semplice</h2>
-            <p id="summaryText"></p>
+            <h2>✅ Riassunto Semplice</h2>
+            <div id="summaryText"></div>
             <hr>
-            <h2>Testo Integrale</h2>
+            <h2>📄 Testo Integrale</h2>
             <pre id="fullText"></pre>
-            <button id="downloadBtn">Scarica Riassunto (Word)</button>
+            <button id="downloadBtn">📥 Scarica Riassunto (Word)</button>
+        </div>
+
+        <!-- Bottoni di test -->
+        <div style="margin-top: 2em; padding-top: 1em; border-top: 1px solid #ddd;">
+            <h3>🔧 Test Connessioni</h3>
+            <button onclick="testServer()" style="background-color: #17a2b8; color: white;">
+                Test Server
+            </button>
+            <button onclick="testTesseract()" style="background-color: #6f42c1; color: white;">
+                Test Tesseract
+            </button>
         </div>
     </div>
 
@@ -205,39 +120,93 @@
         const summaryText = document.getElementById('summaryText');
         const fullText = document.getElementById('fullText');
         const downloadBtn = document.getElementById('downloadBtn');
+        const errorMessage = document.getElementById('errorMessage');
+        const debugInfo = document.getElementById('debugInfo');
+        const debugContent = document.getElementById('debugContent');
+
+        // Funzione per mostrare info di debug
+        function showDebug(message) {
+            debugContent.innerHTML += `<div>${new Date().toLocaleTimeString()}: ${message}</div>`;
+            debugInfo.style.display = 'block';
+        }
+
+        // Funzione per gestire errori
+        function showError(message) {
+            errorMessage.innerHTML = `❌ ${message}`;
+            errorMessage.style.display = 'block';
+            loadingMessage.style.display = 'none';
+        }
+
+        // Test connessione server
+        async function testServer() {
+            try {
+                showDebug('Testing server connection...');
+                const response = await fetch('/test');
+                const data = await response.json();
+                showDebug(`Server response: ${JSON.stringify(data)}`);
+            } catch (error) {
+                showDebug(`Server test failed: ${error.message}`);
+            }
+        }
+
+        // Test Tesseract
+        async function testTesseract() {
+            try {
+                showDebug('Testing Tesseract...');
+                const response = await fetch('/debug/tesseract');
+                const data = await response.json();
+                showDebug(`Tesseract info: ${JSON.stringify(data, null, 2)}`);
+            } catch (error) {
+                showDebug(`Tesseract test failed: ${error.message}`);
+            }
+        }
 
         fileInput.addEventListener('change', async (event) => {
             const file = event.target.files[0];
             if (!file) return;
 
+            showDebug(`File selezionato: ${file.name} (${file.size} bytes)`);
+            
+            // Reset UI
             loadingMessage.style.display = 'block';
             resultsArea.style.display = 'none';
+            errorMessage.style.display = 'none';
 
             const formData = new FormData();
             formData.append('file', file);
 
             try {
+                showDebug('Invio file al server...');
+                
                 const response = await fetch('/upload', {
                     method: 'POST',
                     body: formData,
                 });
-                const data = await response.json();
 
-                if (response.ok) {
-                    summaryText.textContent = data.summary;
+                showDebug(`Risposta ricevuta: Status ${response.status}`);
+
+                const data = await response.json();
+                showDebug(`Dati ricevuti: ${JSON.stringify(data).substring(0, 100)}...`);
+
+                if (response.ok && data.status === 'success') {
+                    summaryText.innerHTML = `<div style="background-color: #e8f5e8; padding: 1em; border-radius: 5px;">${data.summary}</div>`;
                     fullText.textContent = data.full_text;
                     resultsArea.style.display = 'block';
+                    showDebug('✅ Elaborazione completata con successo!');
                 } else {
-                    alert('Errore: ' + data.error);
+                    showError(data.error || 'Errore sconosciuto del server');
+                    showDebug(`Errore dettagli: ${JSON.stringify(data)}`);
                 }
             } catch (error) {
-                alert('Si è verificato un errore di rete.');
+                showError(`Errore di rete: ${error.message}`);
+                showDebug(`Errore fetch: ${error.message}`);
             } finally {
                 loadingMessage.style.display = 'none';
             }
         });
 
         downloadBtn.addEventListener('click', () => {
+            showDebug('Download del documento Word...');
             window.location.href = '/download-summary';
         });
     </script>

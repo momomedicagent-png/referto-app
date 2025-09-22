@@ -7,6 +7,8 @@ from flask import Flask, render_template, request, jsonify, send_file
 from docx import Document
 import fitz  # PyMuPDF
 from dotenv import load_dotenv
+import traceback
+import json
 
 # 🔧 Logging su console e file
 logging.basicConfig(
@@ -111,6 +113,7 @@ def extract_text_from_file(file_path):
     except Exception as e:
         text = f"Errore nell'estrazione del testo: {str(e)}"
         logger.error(f"Errore durante l'estrazione del testo: {e}")
+        logger.error(traceback.format_exc())
 
     return text.strip() if text else "Nessun testo estratto"
 
@@ -141,6 +144,7 @@ def generate_summary(text):
         return response.text
     except Exception as e:
         logger.error(f"Errore Gemini: {e}")
+        logger.error(traceback.format_exc())
         return f"Errore nella generazione del riassunto: {str(e)}"
 
 # 📄 Creazione file Word
@@ -159,6 +163,7 @@ def create_word_doc(summary, full_text):
         return file_path
     except Exception as e:
         logger.error(f"Errore nella creazione del documento Word: {e}")
+        logger.error(traceback.format_exc())
         return None
 
 # 🌐 Rotte Flask
@@ -168,6 +173,7 @@ def home():
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
+    logger.info("=== INIZIO UPLOAD ===")
     try:
         if 'file' not in request.files or request.files['file'].filename == '':
             logger.warning("Nessun file selezionato")
@@ -180,34 +186,64 @@ def upload_file():
         logger.info(f"File ricevuto: {filename}")
 
         # Estrai testo
+        logger.info("Inizio estrazione testo...")
         full_text = extract_text_from_file(filepath)
         logger.info(f"Testo estratto (lunghezza: {len(full_text)})")
         
+        # Log delle prime 200 caratteri per debug
+        logger.info(f"Prime 200 caratteri: {full_text[:200]}...")
+        
         # Genera riassunto
+        logger.info("Inizio generazione riassunto...")
         simple_summary = generate_summary(full_text)
+        logger.info(f"Riassunto generato (lunghezza: {len(simple_summary)})")
         
         # Crea documento Word
+        logger.info("Creazione documento Word...")
         word_path = create_word_doc(simple_summary, full_text)
 
         # Pulisci file temporanei
         try:
             os.remove(filepath)
+            logger.info("File temporaneo rimosso")
         except:
-            pass
+            logger.warning("Impossibile rimuovere file temporaneo")
 
-        return jsonify({
+        # Prepara risposta
+        response_data = {
             "summary": simple_summary,
-            "full_text": full_text
-        })
+            "full_text": full_text,
+            "status": "success"
+        }
+        
+        logger.info("=== PREPARAZIONE RISPOSTA ===")
+        logger.info(f"Lunghezza summary: {len(simple_summary)}")
+        logger.info(f"Lunghezza full_text: {len(full_text)}")
+        
+        # Test serializzazione JSON
+        try:
+            json_test = json.dumps(response_data, ensure_ascii=False)
+            logger.info("JSON serializzato correttamente")
+        except Exception as json_err:
+            logger.error(f"Errore serializzazione JSON: {json_err}")
+            return jsonify({"error": "Errore nella serializzazione della risposta"}), 500
+        
+        logger.info("=== INVIO RISPOSTA ===")
+        return jsonify(response_data)
     
     except Exception as e:
-        logger.error(f"Errore in upload_file: {e}")
-        return jsonify({"error": f"Errore del server: {str(e)}"}), 500
+        logger.error(f"ERRORE CRITICO in upload_file: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            "error": f"Errore del server: {str(e)}",
+            "traceback": traceback.format_exc()
+        }), 500
 
 @app.route('/download-summary')
 def download_summary():
     file_path = os.path.join(ARCHIVE_FOLDER, "riassunto_referto.docx")
     if os.path.exists(file_path):
+        logger.info("File Word inviato per download")
         return send_file(file_path, as_attachment=True)
     else:
         logger.error("File Word non trovato per il download")
@@ -226,6 +262,15 @@ def debug_tesseract():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# 🔧 Endpoint di test connessione
+@app.route('/test')
+def test():
+    return jsonify({
+        "status": "OK",
+        "message": "Server funzionante",
+        "timestamp": str(logging.datetime.now())
+    })
 
 # 🚀 Avvio compatibile con Render
 if __name__ == '__main__':
