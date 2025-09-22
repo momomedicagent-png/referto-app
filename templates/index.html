@@ -11,7 +11,7 @@
             padding: 0;
         }
         .container {
-            max-width: 700px;
+            max-width: 800px;
             margin: 50px auto;
             background-color: #ffffff;
             padding: 30px;
@@ -39,11 +39,8 @@
         button:hover {
             background-color: #2980b9;
         }
-        #result {
-            margin-top: 30px;
-        }
         .section {
-            margin-bottom: 20px;
+            margin-top: 30px;
         }
         .section h2 {
             color: #34495e;
@@ -54,15 +51,38 @@
             border-radius: 5px;
             white-space: pre-wrap;
         }
+        .info, .error {
+            font-size: 0.9em;
+            margin-top: 10px;
+            text-align: center;
+        }
+        .info {
+            color: #7f8c8d;
+        }
+        .error {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        #preview {
+            display: block;
+            margin: 20px auto;
+            max-width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 0 8px rgba(0,0,0,0.1);
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🩺 Referto Medico AI</h1>
         <form id="uploadForm" enctype="multipart/form-data">
-            <input type="file" name="file" required>
+            <input type="file" name="file" id="fileInput" required>
             <button type="submit">Analizza Referto</button>
         </form>
+
+        <img id="preview" style="display:none;" alt="Anteprima immagine">
+        <div id="fileInfo" class="info" style="display:none;"></div>
+        <div id="errorMessage" class="error" style="display:none;"></div>
 
         <div id="result" style="display:none;">
             <div class="section">
@@ -79,20 +99,60 @@
 
     <script>
         const form = document.getElementById('uploadForm');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const errorMessage = document.getElementById('errorMessage');
+        const preview = document.getElementById('preview');
+
+        fileInput.addEventListener('change', () => {
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            fileInfo.innerHTML = `📄 File selezionato: <strong>${file.name}</strong><br>
+                                  Tipo: ${file.type || 'N/D'}<br>
+                                  Dimensione: ${(file.size / 1024).toFixed(2)} KB`;
+            fileInfo.style.display = 'block';
+            errorMessage.style.display = 'none';
+
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    preview.src = reader.result;
+                    preview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            } else {
+                preview.style.display = 'none';
+            }
+        });
+
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const formData = new FormData(form);
-            const response = await fetch('/upload', {
-                method: 'POST',
-                body: formData
-            });
-            const data = await response.json();
-            if (data.summary) {
-                document.getElementById('summaryText').textContent = data.summary;
-                document.getElementById('fullText').textContent = data.full_text;
-                document.getElementById('result').style.display = 'block';
-            } else {
-                alert('Errore: ' + data.error);
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (data.error) {
+                    errorMessage.textContent = "❌ Errore: " + data.error;
+                    errorMessage.style.display = 'block';
+                    document.getElementById('result').style.display = 'none';
+                } else {
+                    document.getElementById('summaryText').textContent = data.summary;
+                    document.getElementById('fullText').textContent = data.full_text;
+                    document.getElementById('result').style.display = 'block';
+                }
+            } catch (err) {
+                errorMessage.textContent = "❌ Errore di rete o server.";
+                errorMessage.style.display = 'block';
             }
         });
     </script>
