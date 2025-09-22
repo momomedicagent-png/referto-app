@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 Flask
 python-dotenv
 pytesseract
@@ -8,16 +7,3 @@ PyMuPDF
 google-generativeai
 openpyxl
 pandas
-#requests
-=======
-Flask
-python-dotenv
-pytesseract
-Pillow
-python-docx
-PyMuPDF
-google-generativeai
-openpyxl
-pandas
-#requests
->>>>>>> 79362e88fbb7894fa8286ef2a3d96639d0e0a071
