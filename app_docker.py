@@ -189,7 +189,7 @@ def create_word_doc(summary, full_text):
 @app.route('/')
 def home():
     # Usa index.html statico se non è in templates/
-    return send_from_directory('.', 'index.html')
+    return send_from_directory('index.html')
 
 
 @app.route('/upload', methods=['POST'])

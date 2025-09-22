@@ -32,6 +32,10 @@
             border-color: #2196f3;
             background-color: #f5f5f5;
         }
+        .upload-area.dragover {
+            background-color: #e3f2fd !important;
+            border-color: #2196f3 !important;
+        }
         .results-area { 
             margin-top: 2em; 
             text-align: left; 
@@ -118,6 +122,9 @@
         </div>
     </div>
 
+    <!-- Tesseract.js -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
     <script>
         const fileInput = document.getElementById('fileInput');
         const loadingMessage = document.getElementById('loadingMessage');
@@ -128,6 +135,9 @@
         const errorMessage = document.getElementById('errorMessage');
         const debugInfo = document.getElementById('debugInfo');
         const debugContent = document.getElementById('debugContent');
+        const uploadArea = document.querySelector('.upload-area');
+
+        let useClientOCR = false;
 
         // Funzione per mostrare info di debug
         function showDebug(message) {
@@ -142,22 +152,63 @@
             loadingMessage.style.display = 'none';
         }
 
+        // Rileva se è mobile
+        function isMobile() {
+            return /Android|iPhone|iPad|iPod|Opera Mini|IEMobile/i.test(navigator.userAgent);
+        }
+
+        // Mini benchmark OCR lato client
+        async function deviceIsFastEnough() {
+            try {
+                const canvas = document.createElement("canvas");
+                const ctx = canvas.getContext("2d");
+                canvas.width = 200;
+                canvas.height = 50;
+                ctx.font = "20px Arial";
+                ctx.fillText("TEST OCR", 10, 30);
+
+                const dataUrl = canvas.toDataURL();
+                const start = performance.now();
+                const worker = await Tesseract.createWorker('eng'); // veloce solo ENG
+                const { data: { text } } = await worker.recognize(dataUrl);
+                await worker.terminate();
+                const elapsed = performance.now() - start;
+
+                showDebug(`Benchmark OCR: "${text.trim()}" in ${elapsed.toFixed(0)} ms`);
+                return elapsed < 2000; // soglia: 2 secondi
+            } catch (err) {
+                showDebug("Errore benchmark OCR: " + err.message);
+                return false;
+            }
+        }
+
+        // Decide strategia OCR
+        async function decideOCRStrategy() {
+            if (!isMobile()) {
+                useClientOCR = await deviceIsFastEnough();
+            } else {
+                const fastEnough = await deviceIsFastEnough();
+                useClientOCR = fastEnough;
+            }
+            showDebug(`Strategia OCR: ${useClientOCR ? "Client (Tesseract.js)" : "Server (Docker)"}`);
+        }
+
         // Test connessione server
         async function testServer() {
             try {
                 showDebug('Testing server connection...');
                 const response = await fetch('/test');
-                const data = await response.json();
-                showDebug(`Server response: ${JSON.stringify(data)}`);
+                const text = await response.text();
+                showDebug(`Raw server response: ${text.substring(0, 200)}...`);
             } catch (error) {
                 showDebug(`Server test failed: ${error.message}`);
             }
         }
 
-        // Test Tesseract
+        // Test Tesseract lato server
         async function testTesseract() {
             try {
-                showDebug('Testing Tesseract...');
+                showDebug('Testing Tesseract (server)...');
                 const response = await fetch('/debug/tesseract');
                 const data = await response.json();
                 showDebug(`Tesseract info: ${JSON.stringify(data, null, 2)}`);
@@ -166,95 +217,101 @@
             }
         }
 
-        // Funzione per processare il file (comune per click e drag&drop)
+        // Funzione per processare il file
         async function processFile(file) {
             if (!file) return;
-
             showDebug(`File selezionato: ${file.name} (${file.size} bytes)`);
-            
-            // Reset UI
+
             loadingMessage.style.display = 'block';
             resultsArea.style.display = 'none';
             errorMessage.style.display = 'none';
 
-            const formData = new FormData();
-            formData.append('file', file);
-
             try {
-                showDebug('Invio file al server...');
-                
-                const response = await fetch('/upload', {
-                    method: 'POST',
-                    body: formData,
-                });
+                if (useClientOCR) {
+                    // OCR lato client
+                    showDebug("OCR lato client con Tesseract.js...");
+                    const worker = await Tesseract.createWorker('ita+eng');
+                    const { data: { text } } = await worker.recognize(file);
+                    await worker.terminate();
+                    showDebug(`OCR completato (${text.length} caratteri)`);
 
-                showDebug(`Risposta ricevuta: Status ${response.status}`);
+                    const response = await fetch('/upload', {
+                        method: 'POST',
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ extracted_text: text })
+                    });
+                    const data = await response.json();
 
-                const data = await response.json();
-                showDebug(`Dati ricevuti: ${JSON.stringify(data).substring(0, 100)}...`);
+                    if (response.ok && data.status === 'success') {
+                        summaryText.innerHTML = `<div style="background-color: #e8f5e8; padding: 1em; border-radius: 5px;">${data.summary}</div>`;
+                        fullText.textContent = data.full_text;
+                        resultsArea.style.display = 'block';
+                        showDebug('✅ Elaborazione completata (client OCR)');
+                    } else {
+                        showError(data.error || 'Errore server lato riassunto.');
+                    }
 
-                if (response.ok && data.status === 'success') {
-                    summaryText.innerHTML = `<div style="background-color: #e8f5e8; padding: 1em; border-radius: 5px;">${data.summary}</div>`;
-                    fullText.textContent = data.full_text;
-                    resultsArea.style.display = 'block';
-                    showDebug('✅ Elaborazione completata con successo!');
                 } else {
-                    showError(data.error || 'Errore sconosciuto del server');
-                    showDebug(`Errore dettagli: ${JSON.stringify(data)}`);
+                    // OCR lato server
+                    showDebug("OCR lato server (Render)...");
+                    const formData = new FormData();
+                    formData.append('file', file);
+
+                    const response = await fetch('/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await response.json();
+
+                    if (response.ok && data.status === 'success') {
+                        summaryText.innerHTML = `<div style="background-color: #e8f5e8; padding: 1em; border-radius: 5px;">${data.summary}</div>`;
+                        fullText.textContent = data.full_text;
+                        resultsArea.style.display = 'block';
+                        showDebug('✅ Elaborazione completata (server OCR)');
+                    } else {
+                        showError(data.error || 'Errore server OCR.');
+                    }
                 }
             } catch (error) {
-                showError(`Errore di rete: ${error.message}`);
-                showDebug(`Errore fetch: ${error.message}`);
+                showError(`Errore: ${error.message}`);
+                showDebug(`Errore: ${error.message}`);
             } finally {
                 loadingMessage.style.display = 'none';
             }
         }
 
-        // Gestione click su input file
+        // Gestione input file
         fileInput.addEventListener('change', async (event) => {
             const file = event.target.files[0];
             await processFile(file);
         });
 
-        // Gestione drag & drop
-        const uploadArea = document.querySelector('.upload-area');
-
+        // Drag & drop
         uploadArea.addEventListener('dragover', (e) => {
             e.preventDefault();
-            uploadArea.style.backgroundColor = '#e3f2fd';
-            uploadArea.style.borderColor = '#2196f3';
+            uploadArea.classList.add('dragover');
         });
-
         uploadArea.addEventListener('dragleave', (e) => {
             e.preventDefault();
-            uploadArea.style.backgroundColor = '';
-            uploadArea.style.borderColor = '#ccc';
+            uploadArea.classList.remove('dragover');
         });
-
         uploadArea.addEventListener('drop', async (e) => {
             e.preventDefault();
-            uploadArea.style.backgroundColor = '';
-            uploadArea.style.borderColor = '#ccc';
-            
+            uploadArea.classList.remove('dragover');
             const files = e.dataTransfer.files;
             if (files.length > 0) {
-                const file = files[0];
-                // Verifica tipo file
-                const allowedTypes = ['.pdf', '.jpg', '.jpeg', '.png'];
-                const fileExt = '.' + file.name.split('.').pop().toLowerCase();
-                
-                if (allowedTypes.includes(fileExt)) {
-                    await processFile(file);
-                } else {
-                    showError('Tipo di file non supportato. Usa PDF, JPG, JPEG o PNG.');
-                }
+                await processFile(files[0]);
             }
         });
 
+        // Download riassunto
         downloadBtn.addEventListener('click', () => {
             showDebug('Download del documento Word...');
             window.location.href = '/download-summary';
         });
+
+        // Avvia benchmark OCR alla partenza
+        decideOCRStrategy();
     </script>
 </body>
 </html>
