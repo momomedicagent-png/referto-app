@@ -3,6 +3,7 @@ FROM python:3.10-slim
 # Installa Tesseract e dipendenze
 RUN apt-get update && apt-get install -y \
     tesseract-ocr \
+    tesseract-ocr-ita \
     libtesseract-dev \
     poppler-utils \
     build-essential \
