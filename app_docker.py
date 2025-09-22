@@ -3,7 +3,7 @@ import logging
 import pytesseract
 import google.generativeai as genai
 from PIL import Image
-from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_file
 from docx import Document
 import fitz  # PyMuPDF
 from dotenv import load_dotenv
@@ -29,7 +29,7 @@ load_dotenv()
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 # ⚙️ Configurazione Flask
-app = Flask(__name__)
+app = Flask(__name__, template_folder="templates")
 UPLOAD_FOLDER = 'uploads'
 ARCHIVE_FOLDER = 'archive'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -65,18 +65,16 @@ def preprocess_image_for_ocr(image_path):
     img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     if img is None:
         return None
-    # Binarizzazione adattiva
     img = cv2.adaptiveThreshold(
         img, 255,
         cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
         cv2.THRESH_BINARY, 31, 2
     )
-    # Rimozione rumore
     img = cv2.medianBlur(img, 3)
     return img
 
 
-# 📄 Estrazione testo da file
+# 📄 Estrazione testo da file (OCR server)
 def extract_text_from_file(file_path):
     ext = os.path.splitext(file_path)[1].lower()
     text = ""
@@ -188,53 +186,52 @@ def create_word_doc(summary, full_text):
 # 🌐 Rotte Flask
 @app.route('/')
 def home():
-    # Usa index.html statico se non è in templates/
-    return send_from_directory('index.html')
+    # Carica index.html da /templates/
+    return render_template('index.html')
 
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
     logger.info("=== INIZIO UPLOAD ===")
     try:
-        if 'file' not in request.files or request.files['file'].filename == '':
-            logger.warning("Nessun file selezionato")
-            return jsonify({"error": "Nessun file selezionato"}), 400
-        
-        file = request.files['file']
-        filename = file.filename
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
-        file.save(filepath)
-        logger.info(f"File ricevuto: {filename}")
+        data = request.get_json(silent=True)
 
-        # Estrai testo
-        logger.info("Inizio estrazione testo...")
-        full_text = extract_text_from_file(filepath)
-        logger.info(f"Testo estratto (lunghezza: {len(full_text)})")
-        
-        logger.info(f"Prime 200 caratteri: {full_text[:200]}...")
-        
+        # Caso B: OCR lato client
+        if data and "extracted_text" in data:
+            full_text = data["extracted_text"]
+            logger.info(f"Testo ricevuto dal client (lunghezza: {len(full_text)})")
+
+        else:
+            # Caso A: OCR lato server
+            if 'file' not in request.files or request.files['file'].filename == '':
+                return jsonify({"error": "Nessun file selezionato"}), 400
+
+            file = request.files['file']
+            filename = file.filename
+            filepath = os.path.join(UPLOAD_FOLDER, filename)
+            file.save(filepath)
+            logger.info(f"File ricevuto: {filename}")
+
+            full_text = extract_text_from_file(filepath)
+
+            try:
+                os.remove(filepath)
+                logger.info("File temporaneo rimosso")
+            except:
+                logger.warning("Impossibile rimuovere file temporaneo")
+
         # Genera riassunto
-        logger.info("Inizio generazione riassunto...")
         simple_summary = generate_summary(full_text)
-        logger.info(f"Riassunto generato (lunghezza: {len(simple_summary)})")
-        
-        # Crea documento Word
-        logger.info("Creazione documento Word...")
-        create_word_doc(simple_summary, full_text)
 
-        # Pulisci file temporanei
-        try:
-            os.remove(filepath)
-            logger.info("File temporaneo rimosso")
-        except:
-            logger.warning("Impossibile rimuovere file temporaneo")
+        # Crea documento Word
+        create_word_doc(simple_summary, full_text)
 
         return jsonify({
             "summary": simple_summary,
             "full_text": full_text,
             "status": "success"
         })
-    
+
     except Exception as e:
         logger.error(f"ERRORE CRITICO in upload_file: {e}")
         logger.error(traceback.format_exc())
