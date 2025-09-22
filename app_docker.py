@@ -1,7 +1,6 @@
 import os
 import logging
 import pytesseract
-import google.generativeai as genai
 from PIL import Image
 from flask import Flask, render_template, request, jsonify, send_file
 from docx import Document
@@ -12,12 +11,6 @@ from datetime import datetime
 import cv2
 import numpy as np
 from openai import OpenAI
-import os
-
-client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=os.getenv("OPENAI_API_KEY"),  # legge la tua chiave
-)
 
 # 🔧 Logging
 logging.basicConfig(
@@ -27,11 +20,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 🔑 API Gemini
+# 🔑 Carica variabili ambiente
 load_dotenv()
 
-#genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-genai.configure(api_key=os.getenv("OPENROUTER_API_KEY"))
+# 🔑 Client OpenRouter (usa OPENAI_API_KEY con valore sk-or-...)
+client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=os.getenv("OPENAI_API_KEY"),
+)
 
 # ⚙️ Flask
 app = Flask(__name__, template_folder="templates")
@@ -86,7 +82,6 @@ def extract_text_from_file(file_path):
                     text += page_text
                     logger.info(f"Testo estratto da pagina {page_num} (PDF digitale)")
                 else:
-                    # OCR immagini PDF
                     image_list = page.get_images(full=True)
                     if image_list:
                         for img_index, img in enumerate(image_list, start=1):
@@ -152,12 +147,12 @@ def extract_text_from_file(file_path):
     return text.strip() if text else "Nessun testo estratto"
 
 
-# 🧠 Riassunto
+# 🧠 Riassunto con OpenRouter
 def generate_summary(text):
     if not text.strip():
         return "Nessun testo da riassumere"
+
     try:
-       # model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = f"""
         Analizza questo referto medico e fornisci un riassunto chiaro e comprensibile.
 
@@ -170,18 +165,12 @@ def generate_summary(text):
         Testo del referto:
         {text}
         """
-        ####Sotto è il codice per Gemini#####
-        #response = model.generate_content(prompt)
-        #return response.text
-    #except Exception as e:
-     #   logger.error(traceback.format_exc())
-      #  return f"Errore generazione riassunto: {str(e)}"
 
         completion = client.chat.completions.create(
-            model="openai/gpt-4o",  # oppure un altro modello supportato
+            model="openai/gpt-4o",
             extra_headers={
-                "HTTP-Referer": "https://tua-app.com",  # opzionale
-                "X-Title": "Assistente Referti",        # opzionale
+                "HTTP-Referer": "https://referto-app.onrender.com",
+                "X-Title": "Assistente Referti"
             },
             messages=[
                 {"role": "system", "content": "Sei un assistente che semplifica referti medici."},
@@ -194,6 +183,7 @@ def generate_summary(text):
     except Exception as e:
         logger.error(traceback.format_exc())
         return f"Errore generazione riassunto: {str(e)}"
+
 
 # 📄 Word
 def create_word_doc(summary, full_text):
