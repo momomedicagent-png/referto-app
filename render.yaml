@@ -1,8 +1,10 @@
 services:
   - type: web
-    name: referto-medico-app
+    name: assistente-documenti-salute
     env: docker
-    plan: free
+    plan: free  # puoi cambiarlo se hai bisogno di più risorse
+    region: frankfurt  # oppure us-east/oregon, scegli quella più vicina
     dockerfilePath: ./Dockerfile
-    buildCommand: ""
-    startCommand: ""
+    envVars:
+      - key: GOOGLE_API_KEY
+        sync: false   # la chiave la imposti dalla dashboard di Render
