@@ -25,7 +25,12 @@
             border: 2px dashed #ccc; 
             padding: 2em; 
             border-radius: 10px; 
-            cursor: pointer; 
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .upload-area:hover {
+            border-color: #2196f3;
+            background-color: #f5f5f5;
         }
         .results-area { 
             margin-top: 2em; 
@@ -161,8 +166,8 @@
             }
         }
 
-        fileInput.addEventListener('change', async (event) => {
-            const file = event.target.files[0];
+        // Funzione per processare il file (comune per click e drag&drop)
+        async function processFile(file) {
             if (!file) return;
 
             showDebug(`File selezionato: ${file.name} (${file.size} bytes)`);
@@ -202,6 +207,47 @@
                 showDebug(`Errore fetch: ${error.message}`);
             } finally {
                 loadingMessage.style.display = 'none';
+            }
+        }
+
+        // Gestione click su input file
+        fileInput.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            await processFile(file);
+        });
+
+        // Gestione drag & drop
+        const uploadArea = document.querySelector('.upload-area');
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.style.backgroundColor = '#e3f2fd';
+            uploadArea.style.borderColor = '#2196f3';
+        });
+
+        uploadArea.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            uploadArea.style.backgroundColor = '';
+            uploadArea.style.borderColor = '#ccc';
+        });
+
+        uploadArea.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            uploadArea.style.backgroundColor = '';
+            uploadArea.style.borderColor = '#ccc';
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const file = files[0];
+                // Verifica tipo file
+                const allowedTypes = ['.pdf', '.jpg', '.jpeg', '.png'];
+                const fileExt = '.' + file.name.split('.').pop().toLowerCase();
+                
+                if (allowedTypes.includes(fileExt)) {
+                    await processFile(file);
+                } else {
+                    showError('Tipo di file non supportato. Usa PDF, JPG, JPEG o PNG.');
+                }
             }
         });
 
