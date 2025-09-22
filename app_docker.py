@@ -9,6 +9,7 @@ import fitz  # PyMuPDF
 from dotenv import load_dotenv
 import traceback
 import json
+from datetime import datetime
 
 # 🔧 Logging su console e file
 logging.basicConfig(
@@ -269,7 +270,7 @@ def test():
     return jsonify({
         "status": "OK",
         "message": "Server funzionante",
-        "timestamp": str(logging.datetime.now())
+        "timestamp": str(datetime.now())
     })
 
 # 🚀 Avvio compatibile con Render
