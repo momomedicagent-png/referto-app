@@ -1,36 +1,36 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Assistente Referti Medici</title>
   <style>
-    body { font-family: sans-serif; background: #f0f4f8; color: #333; margin: 0; padding: 0; }
-    .container { max-width: 900px; margin: auto; padding: 2em; }
-    h1 { color: #007bff; text-align: center; }
-    .upload-area {
-      border: 2px dashed #ccc; padding: 2em; border-radius: 10px; cursor: pointer;
-      text-align: center; background: #fff; transition: 0.3s;
+    body { font-family: Arial, sans-serif; background: #f4f7fb; margin: 0; padding: 0; }
+    .container { max-width: 800px; margin: auto; padding: 20px; }
+    h1 { text-align: center; color: #1976d2; }
+    .upload-box { border: 2px dashed #1976d2; border-radius: 8px; padding: 30px; text-align: center; color: #555; background: #fff; margin-bottom: 20px; cursor: pointer; }
+    #fileList { margin: 10px 0; }
+    .file-item { font-size: 14px; margin: 5px 0; }
+    .preview img { max-width: 100%; margin: 10px 0; border-radius: 8px; }
+    .log { background: #e3f2fd; padding: 10px; border-radius: 6px; margin: 15px 0; font-size: 14px; max-height: 200px; overflow-y: auto; display: none; }
+    .section { display: none; margin-top: 20px; }
+    .btn { padding: 10px 15px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; margin: 5px; }
+    .btn-primary { background: #1976d2; color: #fff; }
+    .btn-secondary { background: #ccc; color: #333; }
+    textarea { width: 100%; height: 80px; margin-top: 10px; }
+
+    /* Spinner */
+    .spinner {
+      display: none;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #1976d2;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+      margin: 15px auto;
     }
-    .upload-area:hover { border-color: #2196f3; background: #f5f5f5; }
-    .file-list { margin-top: 1em; }
-    .file-item { margin: 5px 0; font-size: 0.9em; }
-    .preview { margin-top: 1em; display: flex; flex-wrap: wrap; gap: 10px; }
-    .preview img { max-width: 200px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
-    .results-area { margin-top: 2em; }
-    pre {
-      background: #eee; padding: 1em; border-radius: 5px;
-      white-space: pre-wrap; word-wrap: break-word; max-height: 300px; overflow-y: auto;
-    }
-    .log { background: #d1ecf1; color: #0c5460; padding: 1em; border-radius: 5px; margin-top: 1em; font-size: 0.9em; }
-    button {
-      padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;
-      margin: 5px; font-size: 16px;
-    }
-    #analyzeBtn { background: #007bff; color: #fff; }
-    #downloadBtn { background: #28a745; color: #fff; display: none; }
-    #resetBtn { background: #6c757d; color: #fff; display: none; }
-    select, textarea { width: 100%; padding: 10px; margin-top: 10px; border-radius: 5px; border: 1px solid #ccc; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
@@ -38,147 +38,190 @@
     <h1>🩺 Assistente Referti Medici</h1>
     <p>Carica uno o più referti (PDF, immagini, DOCX, ecc.) per estrarre il testo e poi avvia l’analisi.</p>
 
-    <div class="upload-area" id="uploadArea">
-      <p><strong>Clicca o trascina qui i tuoi file</strong></p>
-      <input type="file" id="fileInput" name="file" multiple
-             accept=".pdf,.jpg,.jpeg,.png,.txt,.docx,.xlsx" style="display: none;">
+    <div id="uploadBox" class="upload-box">
+      Clicca o trascina qui i tuoi file
+      <input type="file" id="fileInput" multiple style="display:none" />
     </div>
+    <div id="fileList"></div>
+    <div id="preview" class="preview"></div>
 
-    <div class="file-list" id="fileList"></div>
-    <div class="preview" id="preview"></div>
+    <div id="spinner" class="spinner"></div>
+    <div id="logBox" class="log"></div>
 
-    <div id="log" class="log" style="display:none;"></div>
-
-    <div class="results-area" id="results" style="display:none;">
-      <h2>📄 Testo Estratto</h2>
+    <div id="results" class="section">
+      <h3>📄 Testo estratto</h3>
       <pre id="fullText"></pre>
-
-      <h2>⚙️ Scegli il livello di analisi</h2>
+      <h3>⚙️ Scegli tipo di analisi</h3>
       <select id="promptType">
-        <option value="simple">Riassunto semplice (per paziente)</option>
-        <option value="intermediate">Riassunto strutturato (medico di base)</option>
-        <option value="detailed">Analisi tecnica dettagliata (specialista)</option>
+        <option value="simple">Riassunto semplice</option>
+        <option value="intermediate">Analisi intermedia</option>
+        <option value="detailed">Analisi dettagliata</option>
         <option value="custom">Prompt personalizzato</option>
       </select>
-      <textarea id="customPrompt" rows="3" placeholder="Inserisci il tuo prompt personalizzato (opzionale)"></textarea>
+      <textarea id="customPrompt" placeholder="Inserisci prompt personalizzato (opzionale)"></textarea>
+      <button id="analyzeBtn" class="btn btn-primary">Avvia analisi</button>
+    </div>
 
-      <button id="analyzeBtn">🔎 Avvia Analisi</button>
-      <button id="downloadBtn">📥 Scarica Riassunto (Word)</button>
-      <button id="resetBtn">🔄 Nuovo Upload</button>
-
-      <div id="summarySection" style="margin-top:2em; display:none;">
-        <h2>✅ Riassunto</h2>
-        <div id="summaryText" style="background:#e8f5e8; padding:1em; border-radius:5px;"></div>
-      </div>
+    <div id="summarySection" class="section">
+      <h3>✅ Riassunto</h3>
+      <pre id="summaryText"></pre>
+      <button id="downloadBtn" class="btn btn-primary">Scarica Word</button>
+      <button id="resetBtn" class="btn btn-secondary">Nuovo upload</button>
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script>
-    const uploadArea = document.getElementById('uploadArea');
-    const fileInput = document.getElementById('fileInput');
-    const fileList = document.getElementById('fileList');
-    const preview = document.getElementById('preview');
-    const logBox = document.getElementById('log');
-    const fullTextEl = document.getElementById('fullText');
-    const resultsEl = document.getElementById('results');
-    const analyzeBtn = document.getElementById('analyzeBtn');
-    const summarySection = document.getElementById('summarySection');
-    const summaryText = document.getElementById('summaryText');
-    const downloadBtn = document.getElementById('downloadBtn');
-    const resetBtn = document.getElementById('resetBtn');
+    const fileInput = document.getElementById("fileInput");
+    const uploadBox = document.getElementById("uploadBox");
+    const fileList = document.getElementById("fileList");
+    const preview = document.getElementById("preview");
+    const logBox = document.getElementById("logBox");
+    const resultsEl = document.getElementById("results");
+    const fullTextEl = document.getElementById("fullText");
+    const summaryText = document.getElementById("summaryText");
+    const summarySection = document.getElementById("summarySection");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const promptType = document.getElementById("promptType");
+    const customPrompt = document.getElementById("customPrompt");
+    const analyzeBtn = document.getElementById("analyzeBtn");
+    const spinner = document.getElementById("spinner");
 
     let extractedText = "";
+    let useClientOCR = false;
 
-    function log(message) {
-      logBox.style.display = 'block';
-      logBox.innerHTML += `<div>🔹 ${message}</div>`;
+    // Spinner helpers
+    function showSpinner() { spinner.style.display = "block"; }
+    function hideSpinner() { spinner.style.display = "none"; }
+
+    // Logging helper
+    function log(msg) {
+      logBox.style.display = "block";
+      logBox.innerHTML += "🔹 " + msg + "<br>";
       logBox.scrollTop = logBox.scrollHeight;
     }
 
-    async function processFiles(files) {
-      if (!files.length) return;
-      log("Caricamento file...");
+    // Benchmark OCR (decide client vs server)
+    async function decideOCRStrategy() {
+      const start = performance.now();
+      await Tesseract.recognize(new Blob(["TEST OCR"], {type:"text/plain"}), "eng");
+      const time = performance.now() - start;
+      useClientOCR = time < 800; // threshold
+      log(`Strategia OCR: ${useClientOCR ? "Client" : "Server"}`);
+    }
+
+    // Upload Box logic
+    uploadBox.addEventListener("click", () => fileInput.click());
+    uploadBox.addEventListener("dragover", e => { e.preventDefault(); uploadBox.style.background="#e3f2fd"; });
+    uploadBox.addEventListener("dragleave", e => { uploadBox.style.background="#fff"; });
+    uploadBox.addEventListener("drop", e => { e.preventDefault(); fileInput.files = e.dataTransfer.files; handleFiles(); });
+    fileInput.addEventListener("change", handleFiles);
+
+    function handleFiles() {
+      const files = fileInput.files;
       fileList.innerHTML = "";
       preview.innerHTML = "";
-
-      const formData = new FormData();
-      for (let file of files) {
-        formData.append("file", file);
-
+      extractedText = "";
+      if (!files.length) return;
+      [...files].forEach(file => {
         const item = document.createElement("div");
         item.className = "file-item";
-        item.textContent = `📄 ${file.name} (${Math.round(file.size/1024)} KB)`;
+        item.textContent = `${file.name} (${Math.round(file.size/1024)} KB)`;
         fileList.appendChild(item);
 
         if (file.type.startsWith("image/")) {
-          const img = document.createElement("img");
-          img.src = URL.createObjectURL(file);
-          preview.appendChild(img);
+          const reader = new FileReader();
+          reader.onload = e => {
+            const img = document.createElement("img");
+            img.src = e.target.result;
+            preview.appendChild(img);
+          };
+          reader.readAsDataURL(file);
         }
-      }
+      });
+      uploadFiles(files);
+    }
 
+    // Upload to server or OCR client-side
+    async function uploadFiles(files) {
+      log("Caricamento file...");
+      showSpinner();
       try {
-        const response = await fetch("/upload", { method: "POST", body: formData });
-        const data = await response.json();
-        if (data.status === "uploaded") {
-          extractedText = data.full_text;
+        if (useClientOCR) {
+          log("OCR lato client...");
+          let combined = "";
+          for (let file of files) {
+            if (file.type.startsWith("image/")) {
+              const { data: { text } } = await Tesseract.recognize(file, "ita+eng");
+              combined += text + "\n";
+            } else {
+              const formData = new FormData();
+              formData.append("file", file);
+              const resp = await fetch("/upload", { method:"POST", body: formData });
+              const result = await safeJson(resp, "estrazione lato server fallback");
+              combined += result.full_text || "";
+            }
+          }
+          extractedText = combined;
           fullTextEl.textContent = extractedText;
           resultsEl.style.display = "block";
-          resetBtn.style.display = "inline-block";
-          log("✅ Testo estratto dai file.");
         } else {
-          log("❌ Errore durante l'upload: " + (data.error || "sconosciuto"));
+          const formData = new FormData();
+          [...files].forEach(f => formData.append("file", f));
+          const resp = await fetch("/upload", { method:"POST", body: formData });
+          const result = await safeJson(resp, "estrazione server");
+          extractedText = result.full_text;
+          fullTextEl.textContent = extractedText;
+          resultsEl.style.display = "block";
         }
       } catch (err) {
-        log("❌ Errore rete: " + err.message);
+        log("❌ Errore upload: " + err.message);
+      } finally {
+        hideSpinner();
       }
     }
 
-    // Gestione drag&drop
-    uploadArea.addEventListener("click", () => fileInput.click());
-    fileInput.addEventListener("change", (e) => processFiles(e.target.files));
-    uploadArea.addEventListener("dragover", (e) => {
-      e.preventDefault(); uploadArea.style.background="#e3f2fd"; uploadArea.style.borderColor="#2196f3";
-    });
-    uploadArea.addEventListener("dragleave", (e) => {
-      e.preventDefault(); uploadArea.style.background=""; uploadArea.style.borderColor="#ccc";
-    });
-    uploadArea.addEventListener("drop", (e) => {
-      e.preventDefault(); uploadArea.style.background=""; uploadArea.style.borderColor="#ccc";
-      processFiles(e.dataTransfer.files);
-    });
-
-    // Analisi dopo scelta prompt
+    // Analyze button
     analyzeBtn.addEventListener("click", async () => {
-      if (!extractedText) { log("❌ Nessun testo disponibile per l'analisi."); return; }
-
-      const promptType = document.getElementById("promptType").value;
-      const customPrompt = document.getElementById("customPrompt").value;
-
-      const formData = new FormData();
-      formData.append("extracted_text", extractedText);
-      formData.append("prompt_type", promptType);
-      formData.append("custom_prompt", customPrompt);
-
-      log("Invio testo per analisi...");
+      if (!extractedText) {
+        log("Nessun testo da analizzare.");
+        return;
+      }
+      log("Avvio analisi...");
+      showSpinner();
       try {
-        const response = await fetch("/analyze", { method: "POST", body: formData });
-        const data = await response.json();
-        if (data.status === "success") {
-          summaryText.textContent = data.summary;
-          summarySection.style.display = "block";
-          downloadBtn.style.display = "inline-block";
-          log("✅ Analisi completata.");
-        } else {
-          log("❌ Errore analisi: " + (data.error || "sconosciuto"));
-        }
+        const formData = new FormData();
+        formData.append("extracted_text", extractedText);
+        formData.append("prompt_type", promptType.value);
+        formData.append("custom_prompt", customPrompt.value);
+
+        const resp = await fetch("/analyze", { method:"POST", body: formData });
+        const result = await safeJson(resp, "analisi");
+        summaryText.textContent = result.summary || "Errore analisi";
+        summarySection.style.display = "block";
+        downloadBtn.style.display = "inline-block";
+        resetBtn.style.display = "inline-block";
       } catch (err) {
-        log("❌ Errore rete: " + err.message);
+        log("❌ Errore analisi: " + err.message);
+      } finally {
+        hideSpinner();
       }
     });
 
-    // Reset per nuovo upload
-    resetBtn.addEventListener("click", () => {
+    // Safe JSON parse
+    async function safeJson(response, context) {
+      try {
+        return await response.json();
+      } catch (err) {
+        const text = await response.text();
+        throw new Error(`Risposta non JSON (${context}): ${text}`);
+      }
+    }
+
+    // Reset
+    resetBtn.addEventListener("click", async () => {
+      await fetch("/reset", { method:"POST" });
       fileInput.value = "";
       fileList.innerHTML = "";
       preview.innerHTML = "";
@@ -188,13 +231,11 @@
       resultsEl.style.display = "none";
       logBox.innerHTML = "";
       logBox.style.display = "none";
-      downloadBtn.style.display = "none";
-      resetBtn.style.display = "none";
       extractedText = "";
-      log("🔄 Pronto per un nuovo upload.");
+      log("Pronto per nuovo upload.");
     });
-	
-    downloadBtn.addEventListener("click", () => { window.location.href="/download-summary"; });
+
+    decideOCRStrategy();
   </script>
 </body>
 </html>
