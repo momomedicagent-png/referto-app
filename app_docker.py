@@ -11,6 +11,7 @@ import cv2
 import numpy as np
 import traceback
 import pandas as pd
+import shutil
 
 # Logging
 logging.basicConfig(
@@ -30,7 +31,7 @@ ARCHIVE_FOLDER = "archive"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(ARCHIVE_FOLDER, exist_ok=True)
 
-# --- Configura Tesseract ---
+# --- Configurazione Tesseract ---
 def configure_tesseract():
     try:
         pytesseract.get_tesseract_version()
@@ -44,10 +45,11 @@ def configure_tesseract():
                 break
 configure_tesseract()
 
-# --- Preprocessing ---
+# --- Preprocessing immagini ---
 def preprocess_image_for_ocr(image_path):
     img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
-    if img is None: return None
+    if img is None:
+        return None
     img = cv2.adaptiveThreshold(img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                                 cv2.THRESH_BINARY, 31, 2)
     img = cv2.medianBlur(img, 3)
@@ -64,20 +66,34 @@ def extract_text_from_file(file_path):
                 page_text = page.get_text().strip()
                 if page_text and len(page_text) > 10:
                     text += page_text + "\n"
+                    logger.info(f"Pagina {page_num}: testo digitale estratto")
                 else:
-                    for img_index, img in enumerate(page.get_images(full=True), start=1):
+                    image_list = page.get_images(full=True)
+                    if not image_list:
+                        logger.warning(f"Pagina {page_num}: nessun testo o immagine trovata")
+                        continue
+                    for img_index, img in enumerate(image_list, start=1):
                         xref = img[0]
                         base_image = doc.extract_image(xref)
-                        img_path = os.path.join(UPLOAD_FOLDER, f"page{page_num}_img{img_index}.{base_image['ext']}")
-                        with open(img_path, "wb") as f: f.write(base_image["image"])
+                        image_bytes = base_image["image"]
+                        img_ext = base_image["ext"]
+                        img_path = os.path.join(
+                            UPLOAD_FOLDER, f"page{page_num}_img{img_index}.{img_ext}"
+                        )
+                        with open(img_path, "wb") as f:
+                            f.write(image_bytes)
+
                         preprocessed = preprocess_image_for_ocr(img_path)
                         config = r"--oem 1 --psm 6 -l ita+eng"
                         if preprocessed is not None:
                             page_text = pytesseract.image_to_string(preprocessed, config=config)
                         else:
-                            page_text = pytesseract.image_to_string(Image.open(img_path), config=config)
+                            pil_img = Image.open(img_path)
+                            page_text = pytesseract.image_to_string(pil_img, config=config)
+
                         text += page_text + "\n"
                         os.remove(img_path)
+                    logger.info(f"Pagina {page_num}: OCR completato")
             doc.close()
 
         elif ext in [".png", ".jpg", ".jpeg"]:
@@ -86,37 +102,57 @@ def extract_text_from_file(file_path):
             if preprocessed is not None:
                 text = pytesseract.image_to_string(preprocessed, config=config)
             else:
-                img = Image.open(file_path)
-                if img.mode != "RGB": img = img.convert("RGB")
-                text = pytesseract.image_to_string(img, config=config)
+                image = Image.open(file_path)
+                if image.mode != "RGB":
+                    image = image.convert("RGB")
+                text = pytesseract.image_to_string(image, config=config)
+            logger.info(f"OCR completato su immagine {file_path}")
 
         elif ext == ".txt":
-            with open(file_path, "r", encoding="utf-8") as f: text = f.read()
+            with open(file_path, "r", encoding="utf-8") as f:
+                text = f.read()
 
         elif ext == ".docx":
             doc = Document(file_path)
-            text = "\n".join([p.text for p in doc.paragraphs])
+            for para in doc.paragraphs:
+                text += para.text + "\n"
 
         elif ext == ".xlsx":
             xls = pd.read_excel(file_path, sheet_name=None)
-            for sheet, df in xls.items():
-                text += f"\n--- Foglio: {sheet} ---\n{df.to_string(index=False)}"
+            for sheet_name, df in xls.items():
+                text += f"\n--- Foglio: {sheet_name} ---\n"
+                text += df.to_string(index=False)
 
         else:
             text = "Formato non supportato."
-    except Exception:
+            logger.warning(f"Formato non supportato: {ext}")
+
+    except Exception as e:
+        text = f"Errore estrazione testo: {str(e)}"
         logger.error(traceback.format_exc())
-        text = "Errore estrazione testo."
-    return text.strip()
+
+    return text.strip() if text else "Nessun testo estratto"
 
 # --- Prompt generator ---
 def get_prompt(base_type, custom, text):
     if base_type == "simple":
-        return f"Riassunto semplice e comprensibile:\n\n{text}"
+        return f"Analizza questo referto medico e fornisci un riassunto chiaro e semplice per un paziente:\n\n{text}"
     elif base_type == "intermediate":
-        return f"Analisi intermedia strutturata con diagnosi, parametri, terapie:\n\n{text}"
+        return f"""Analizza questo referto medico e fornisci un riassunto strutturato.
+        - Diagnosi principale
+        - Parametri fuori norma con valori numerici
+        - Terapie o raccomandazioni
+        - Considerazioni cliniche sintetiche
+        Testo referto:
+        {text}"""
     elif base_type == "detailed":
-        return f"Analisi medica dettagliata per specialisti:\n\n{text}"
+        return f"""Analisi tecnica dettagliata del referto medico:
+        - Diagnosi e classificazioni mediche specifiche
+        - Valori di laboratorio con range normali
+        - Correlazioni cliniche
+        - Implicazioni prognostiche o terapeutiche
+        Testo referto:
+        {text}"""
     elif base_type == "custom" and custom:
         return f"{custom}\n\nTesto referto:\n{text}"
     return f"Riassumi il seguente referto medico:\n{text}"
@@ -125,11 +161,11 @@ def get_prompt(base_type, custom, text):
 def generate_summary(prompt):
     try:
         model = genai.GenerativeModel("gemini-1.5-flash")
-        resp = model.generate_content(prompt)
-        return resp.text
-    except Exception:
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
         logger.error(traceback.format_exc())
-        return "Errore generazione riassunto."
+        return f"Errore generazione riassunto: {str(e)}"
 
 # --- Word export ---
 def create_word_doc(summary, full_text):
@@ -139,62 +175,72 @@ def create_word_doc(summary, full_text):
     doc.add_page_break()
     doc.add_heading("Testo Integrale", level=1)
     doc.add_paragraph(full_text)
-    path = os.path.join(ARCHIVE_FOLDER, "riassunto_referto.docx")
-    doc.save(path)
-    return path
+    file_path = os.path.join(ARCHIVE_FOLDER, "riassunto_referto.docx")
+    doc.save(file_path)
+    return file_path
 
 # --- Routes ---
 @app.route("/")
-def home(): return render_template("index.html")
+def home():
+    return render_template("index.html")
 
 @app.route("/upload", methods=["POST"])
 def upload_file():
     try:
-        if "file" not in request.files:
-            return jsonify({"error": "Nessun file inviato"}), 400
         texts = []
-        for f in request.files.getlist("file"):
-            path = os.path.join(UPLOAD_FOLDER, f.filename)
-            f.save(path)
-            texts.append(extract_text_from_file(path))
-            os.remove(path)
-        return jsonify({"full_text": "\n\n".join(texts)})
-    except Exception:
+        for file in request.files.getlist("file"):
+            filepath = os.path.join(UPLOAD_FOLDER, file.filename)
+            file.save(filepath)
+            texts.append(extract_text_from_file(filepath))
+            os.remove(filepath)
+        full_text = "\n\n".join(texts)
+        return jsonify({"full_text": full_text, "status": "uploaded"})
+    except Exception as e:
         logger.error(traceback.format_exc())
-        return jsonify({"error": "Errore durante upload"}), 500
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/analyze", methods=["POST"])
-def analyze():
+def analyze_text():
     try:
-        text = request.form.get("extracted_text", "")
-        if not text: return jsonify({"error": "Nessun testo ricevuto"}), 400
-        prompt = get_prompt(request.form.get("prompt_type","simple"),
-                            request.form.get("custom_prompt",""), text)
+        full_text = request.form.get("extracted_text", "")
+        prompt_type = request.form.get("prompt_type", "simple")
+        custom_prompt = request.form.get("custom_prompt", "")
+        prompt = get_prompt(prompt_type, custom_prompt, full_text)
+
         summary = generate_summary(prompt)
-        create_word_doc(summary, text)
-        return jsonify({"summary": summary})
-    except Exception:
+        create_word_doc(summary, full_text)
+        return jsonify({"summary": summary, "status": "success"})
+    except Exception as e:
         logger.error(traceback.format_exc())
-        return jsonify({"error": "Errore analisi"}), 500
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/download-summary")
 def download_summary():
-    path = os.path.join(ARCHIVE_FOLDER, "riassunto_referto.docx")
-    return send_file(path, as_attachment=True) if os.path.exists(path) else jsonify({"error":"File non disponibile"}),404
+    file_path = os.path.join(ARCHIVE_FOLDER, "riassunto_referto.docx")
+    if os.path.exists(file_path):
+        return send_file(file_path, as_attachment=True)
+    return jsonify({"error": "File non disponibile"}), 404
 
 @app.route("/reset", methods=["POST"])
 def reset():
+    """Pulisce cartelle uploads e archive"""
     try:
-        for f in os.listdir(UPLOAD_FOLDER):
-            os.remove(os.path.join(UPLOAD_FOLDER, f))
-        for f in os.listdir(ARCHIVE_FOLDER):
-            os.remove(os.path.join(ARCHIVE_FOLDER, f))
-        return jsonify({"status":"reset ok"})
-    except Exception:
-        return jsonify({"error":"Errore reset"}),500
+        if os.path.exists(UPLOAD_FOLDER):
+            shutil.rmtree(UPLOAD_FOLDER)
+            os.makedirs(UPLOAD_FOLDER)
+        if os.path.exists(ARCHIVE_FOLDER):
+            shutil.rmtree(ARCHIVE_FOLDER)
+            os.makedirs(ARCHIVE_FOLDER)
+        logger.info("Cartelle pulite (uploads/ e archive/)")
+        return jsonify({"status": "reset_done"})
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/test")
-def test(): return jsonify({"status": "OK", "timestamp": str(datetime.now())})
+def test():
+    return jsonify({"status": "OK", "timestamp": str(datetime.now())})
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT",5000)), debug=False)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=False)
