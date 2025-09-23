@@ -4,191 +4,197 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Assistente Referti Medici</title>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
-    body { font-family: sans-serif; background:#f0f4f8; margin:2em; color:#333; text-align:center; }
-    .container { max-width:900px; margin:auto; background:#fff; padding:2em; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,0.1); }
-    h1 { color:#007bff; }
-    .upload-area { border:2px dashed #ccc; padding:2em; border-radius:10px; margin-top:1em; cursor:pointer; transition:.3s; }
-    .upload-area.dragover { border-color:#007bff; background:#f5faff; }
-    .results-area { margin-top:2em; text-align:left; }
-    pre { background:#eee; padding:1em; border-radius:6px; white-space:pre-wrap; word-wrap:break-word; }
-    select, textarea { width:100%; padding:0.8em; margin:1em 0; border-radius:6px; border:1px solid #ccc; font-size:14px; }
-    button { padding:12px 24px; margin-top:1em; border:none; border-radius:6px; background:#28a745; color:#fff; font-size:16px; cursor:pointer; }
-    button:hover { background:#218838; }
-    .loading { color:#007bff; font-weight:bold; margin-top:1em; }
-    .log-box { background:#f0f9ff; border-left:4px solid #007bff; padding:1em; margin-top:1em; text-align:left; font-size:14px; border-radius:6px; max-height:200px; overflow-y:auto; }
-    .preview { margin-top:1em; max-width:100%; border-radius:8px; }
+    body { font-family: sans-serif; background: #f0f4f8; color: #333; margin: 0; padding: 0; }
+    .container { max-width: 900px; margin: auto; padding: 2em; }
+    h1 { color: #007bff; text-align: center; }
+    .upload-area {
+      border: 2px dashed #ccc; padding: 2em; border-radius: 10px; cursor: pointer;
+      text-align: center; background: #fff; transition: 0.3s;
+    }
+    .upload-area:hover { border-color: #2196f3; background: #f5f5f5; }
+    .file-list { margin-top: 1em; }
+    .file-item { margin: 5px 0; font-size: 0.9em; }
+    .preview { margin-top: 1em; display: flex; flex-wrap: wrap; gap: 10px; }
+    .preview img { max-width: 200px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
+    .results-area { margin-top: 2em; }
+    pre {
+      background: #eee; padding: 1em; border-radius: 5px;
+      white-space: pre-wrap; word-wrap: break-word; max-height: 300px; overflow-y: auto;
+    }
+    .log { background: #d1ecf1; color: #0c5460; padding: 1em; border-radius: 5px; margin-top: 1em; font-size: 0.9em; }
+    button {
+      padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;
+      margin: 5px; font-size: 16px;
+    }
+    #analyzeBtn { background: #007bff; color: #fff; }
+    #downloadBtn { background: #28a745; color: #fff; display: none; }
+    #resetBtn { background: #6c757d; color: #fff; display: none; }
+    select, textarea { width: 100%; padding: 10px; margin-top: 10px; border-radius: 5px; border: 1px solid #ccc; }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>🩺 Assistente Referti Medici</h1>
-    <p>Carica il tuo referto medico (PDF o immagine) e scegli il livello di dettaglio del riassunto.</p>
-
-    <label for="promptSelector"><strong>🔎 Tipo di analisi:</strong></label>
-    <select id="promptSelector" onchange="toggleCustomPrompt()">
-      <option value="simple">Semplice (paziente)</option>
-      <option value="intermediate">Intermedio (medico di base)</option>
-      <option value="detailed">Dettagliato (specialista)</option>
-      <option value="custom">Personalizzato</option>
-    </select>
-    <textarea id="customPrompt" placeholder="Scrivi qui il tuo prompt personalizzato..." style="display:none;"></textarea>
+    <p>Carica uno o più referti (PDF, immagini, DOCX, ecc.) per estrarre il testo e poi avvia l’analisi.</p>
 
     <div class="upload-area" id="uploadArea">
       <p><strong>Clicca o trascina qui i tuoi file</strong></p>
-      <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png" multiple style="display:none;">
+      <input type="file" id="fileInput" name="file" multiple
+             accept=".pdf,.jpg,.jpeg,.png,.txt,.docx,.xlsx" style="display: none;">
     </div>
 
-    <div id="preview"></div>
-    <div id="loadingMessage" class="loading" style="display:none;">⏳ Elaborazione in corso...</div>
-    <div id="logBox" class="log-box" style="display:none;"></div>
+    <div class="file-list" id="fileList"></div>
+    <div class="preview" id="preview"></div>
 
-    <div id="results" class="results-area" style="display:none;">
-      <h2>✅ Riassunto</h2>
-      <div id="summaryText"></div>
-      <hr>
-      <h2>📄 Testo Integrale</h2>
+    <div id="log" class="log" style="display:none;"></div>
+
+    <div class="results-area" id="results" style="display:none;">
+      <h2>📄 Testo Estratto</h2>
       <pre id="fullText"></pre>
+
+      <h2>⚙️ Scegli il livello di analisi</h2>
+      <select id="promptType">
+        <option value="simple">Riassunto semplice (per paziente)</option>
+        <option value="intermediate">Riassunto strutturato (medico di base)</option>
+        <option value="detailed">Analisi tecnica dettagliata (specialista)</option>
+        <option value="custom">Prompt personalizzato</option>
+      </select>
+      <textarea id="customPrompt" rows="3" placeholder="Inserisci il tuo prompt personalizzato (opzionale)"></textarea>
+
+      <button id="analyzeBtn">🔎 Avvia Analisi</button>
       <button id="downloadBtn">📥 Scarica Riassunto (Word)</button>
+      <button id="resetBtn">🔄 Nuovo Upload</button>
+
+      <div id="summarySection" style="margin-top:2em; display:none;">
+        <h2>✅ Riassunto</h2>
+        <div id="summaryText" style="background:#e8f5e8; padding:1em; border-radius:5px;"></div>
+      </div>
     </div>
   </div>
 
   <script>
-    const fileInput = document.getElementById("fileInput");
-    const uploadArea = document.getElementById("uploadArea");
-    const preview = document.getElementById("preview");
-    const loadingMessage = document.getElementById("loadingMessage");
-    const logBox = document.getElementById("logBox");
-    const results = document.getElementById("results");
-    const summaryText = document.getElementById("summaryText");
-    const fullText = document.getElementById("fullText");
-    const downloadBtn = document.getElementById("downloadBtn");
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const fileList = document.getElementById('fileList');
+    const preview = document.getElementById('preview');
+    const logBox = document.getElementById('log');
+    const fullTextEl = document.getElementById('fullText');
+    const resultsEl = document.getElementById('results');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const summarySection = document.getElementById('summarySection');
+    const summaryText = document.getElementById('summaryText');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const resetBtn = document.getElementById('resetBtn');
 
-    function log(msg) {
-      logBox.innerHTML += `<div>🔹 ${msg}</div>`;
-      logBox.style.display = "block";
+    let extractedText = "";
+
+    function log(message) {
+      logBox.style.display = 'block';
+      logBox.innerHTML += `<div>🔹 ${message}</div>`;
+      logBox.scrollTop = logBox.scrollHeight;
     }
-    function toggleCustomPrompt() {
-      document.getElementById("customPrompt").style.display =
-        document.getElementById("promptSelector").value === "custom" ? "block" : "none";
-    }
 
-    // Drag & Drop
-    uploadArea.addEventListener("click", () => fileInput.click());
-    uploadArea.addEventListener("dragover", e => { e.preventDefault(); uploadArea.classList.add("dragover"); });
-    uploadArea.addEventListener("dragleave", e => { e.preventDefault(); uploadArea.classList.remove("dragover"); });
-    uploadArea.addEventListener("drop", e => {
-      e.preventDefault();
-      uploadArea.classList.remove("dragover");
-      fileInput.files = e.dataTransfer.files;
-      handleFiles(fileInput.files);
-    });
-    fileInput.addEventListener("change", () => handleFiles(fileInput.files));
-
-    // Preview
-    function handleFiles(files) {
+    async function processFiles(files) {
+      if (!files.length) return;
+      log("Caricamento file...");
+      fileList.innerHTML = "";
       preview.innerHTML = "";
-      for (const file of files) {
-        if (file.type.startsWith("image/")) {
-          const reader = new FileReader();
-          reader.onload = e => {
-            const img = document.createElement("img");
-            img.src = e.target.result;
-            img.className = "preview";
-            preview.appendChild(img);
-          };
-          reader.readAsDataURL(file);
-        } else {
-          preview.innerHTML += `<p>📄 ${file.name}</p>`;
-        }
-      }
-      decideOCRStrategy(files);
-    }
 
-    // Benchmark OCR
-    async function benchmarkOCR() {
-      const start = performance.now();
-      try { await Tesseract.recognize(new Blob([new Uint8Array([0])]), "eng"); } catch {}
-      return performance.now() - start;
-    }
-
-    async function decideOCRStrategy(files) {
-      log("Esecuzione benchmark OCR...");
-      const time = await benchmarkOCR();
-      log(`⏱ Benchmark: ${time.toFixed(0)} ms`);
-      const isMobile = /Mobi|Android/i.test(navigator.userAgent);
-
-      if (!isMobile && time < 1000) {
-        log("➡️ Uso OCR lato client");
-        runClientOCR(files);
-      } else {
-        log("➡️ Invio file al server");
-        runServerProcessing(files);
-      }
-    }
-
-    async function runClientOCR(files) {
-      loadingMessage.style.display = "block";
-      let extractedText = "";
-      for (const file of files) {
-        if (file.type.startsWith("image/")) {
-          log(`OCR client su immagine: ${file.name}`);
-          const result = await Tesseract.recognize(file, "ita+eng");
-          extractedText += result.data.text + "\n";
-        } else {
-          log(`File ${file.name} → server (no OCR client)`);
-          runServerProcessing(files);
-          return;
-        }
-      }
-      sendToServer(extractedText);
-    }
-
-    async function runServerProcessing(files) {
-      loadingMessage.style.display = "block";
       const formData = new FormData();
-      for (const file of files) formData.append("file", file);
-      const selector = document.getElementById("promptSelector").value;
-      const customPrompt = document.getElementById("customPrompt").value;
-      formData.append("prompt_type", selector);
-      if (selector === "custom") formData.append("custom_prompt", customPrompt);
+      for (let file of files) {
+        formData.append("file", file);
+
+        const item = document.createElement("div");
+        item.className = "file-item";
+        item.textContent = `📄 ${file.name} (${Math.round(file.size/1024)} KB)`;
+        fileList.appendChild(item);
+
+        if (file.type.startsWith("image/")) {
+          const img = document.createElement("img");
+          img.src = URL.createObjectURL(file);
+          preview.appendChild(img);
+        }
+      }
 
       try {
         const response = await fetch("/upload", { method: "POST", body: formData });
         const data = await response.json();
-        showResults(data);
-      } catch (e) { log("❌ Errore rete: " + e.message); }
-      finally { loadingMessage.style.display = "none"; }
+        if (data.status === "uploaded") {
+          extractedText = data.full_text;
+          fullTextEl.textContent = extractedText;
+          resultsEl.style.display = "block";
+          resetBtn.style.display = "inline-block";
+          log("✅ Testo estratto dai file.");
+        } else {
+          log("❌ Errore durante l'upload: " + (data.error || "sconosciuto"));
+        }
+      } catch (err) {
+        log("❌ Errore rete: " + err.message);
+      }
     }
 
-    async function sendToServer(extractedText) {
+    // Gestione drag&drop
+    uploadArea.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", (e) => processFiles(e.target.files));
+    uploadArea.addEventListener("dragover", (e) => {
+      e.preventDefault(); uploadArea.style.background="#e3f2fd"; uploadArea.style.borderColor="#2196f3";
+    });
+    uploadArea.addEventListener("dragleave", (e) => {
+      e.preventDefault(); uploadArea.style.background=""; uploadArea.style.borderColor="#ccc";
+    });
+    uploadArea.addEventListener("drop", (e) => {
+      e.preventDefault(); uploadArea.style.background=""; uploadArea.style.borderColor="#ccc";
+      processFiles(e.dataTransfer.files);
+    });
+
+    // Analisi dopo scelta prompt
+    analyzeBtn.addEventListener("click", async () => {
+      if (!extractedText) { log("❌ Nessun testo disponibile per l'analisi."); return; }
+
+      const promptType = document.getElementById("promptType").value;
+      const customPrompt = document.getElementById("customPrompt").value;
+
       const formData = new FormData();
       formData.append("extracted_text", extractedText);
-      const selector = document.getElementById("promptSelector").value;
-      const customPrompt = document.getElementById("customPrompt").value;
-      formData.append("prompt_type", selector);
-      if (selector === "custom") formData.append("custom_prompt", customPrompt);
+      formData.append("prompt_type", promptType);
+      formData.append("custom_prompt", customPrompt);
 
+      log("Invio testo per analisi...");
       try {
-        const response = await fetch("/upload", { method: "POST", body: formData });
+        const response = await fetch("/analyze", { method: "POST", body: formData });
         const data = await response.json();
-        showResults(data);
-      } catch (e) { log("❌ Errore rete: " + e.message); }
-      finally { loadingMessage.style.display = "none"; }
-    }
+        if (data.status === "success") {
+          summaryText.textContent = data.summary;
+          summarySection.style.display = "block";
+          downloadBtn.style.display = "inline-block";
+          log("✅ Analisi completata.");
+        } else {
+          log("❌ Errore analisi: " + (data.error || "sconosciuto"));
+        }
+      } catch (err) {
+        log("❌ Errore rete: " + err.message);
+      }
+    });
 
-    function showResults(data) {
-      if (data.status === "success") {
-        summaryText.innerHTML = `<div style="background:#e8f5e8;padding:1em;border-radius:6px;">${data.summary}</div>`;
-        fullText.textContent = data.full_text;
-        results.style.display = "block";
-        if (data.page_modes) log(`📊 Modalità pagine PDF: ${data.page_modes.join(", ")}`);
-        log("✅ Elaborazione completata");
-      } else log("❌ Errore: " + data.error);
-    }
-
-    downloadBtn.addEventListener("click", () => window.location.href = "/download-summary");
+    // Reset per nuovo upload
+    resetBtn.addEventListener("click", () => {
+      fileInput.value = "";
+      fileList.innerHTML = "";
+      preview.innerHTML = "";
+      fullTextEl.textContent = "";
+      summaryText.textContent = "";
+      summarySection.style.display = "none";
+      resultsEl.style.display = "none";
+      logBox.innerHTML = "";
+      logBox.style.display = "none";
+      downloadBtn.style.display = "none";
+      resetBtn.style.display = "none";
+      extractedText = "";
+      log("🔄 Pronto per un nuovo upload.");
+    });
+	
+    downloadBtn.addEventListener("click", () => { window.location.href="/download-summary"; });
   </script>
 </body>
 </html>

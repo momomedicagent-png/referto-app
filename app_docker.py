@@ -11,6 +11,7 @@ import cv2
 import numpy as np
 import traceback
 import pandas as pd
+import shutil
 
 # Logging
 logging.basicConfig(
@@ -63,18 +64,14 @@ def extract_text_from_file(file_path):
             doc = fitz.open(file_path)
             for page_num, page in enumerate(doc, start=1):
                 page_text = page.get_text().strip()
-
                 if page_text and len(page_text) > 10:
-                    # PDF digitale → testo estratto
                     text += page_text + "\n"
                     logger.info(f"Pagina {page_num}: testo digitale estratto")
                 else:
-                    # PDF immagine → OCR
                     image_list = page.get_images(full=True)
                     if not image_list:
                         logger.warning(f"Pagina {page_num}: nessun testo o immagine trovata")
                         continue
-
                     for img_index, img in enumerate(image_list, start=1):
                         xref = img[0]
                         base_image = doc.extract_image(xref)
@@ -95,11 +92,7 @@ def extract_text_from_file(file_path):
                             page_text = pytesseract.image_to_string(pil_img, config=config)
 
                         text += page_text + "\n"
-                        try:
-                            os.remove(img_path)
-                        except:
-                            logger.warning(f"Impossibile eliminare file temporaneo {img_path}")
-
+                        os.remove(img_path)
                     logger.info(f"Pagina {page_num}: OCR completato")
             doc.close()
 
@@ -194,32 +187,29 @@ def home():
 @app.route("/upload", methods=["POST"])
 def upload_file():
     try:
-        full_text = ""
-        if "extracted_text" in request.form:
-            full_text = request.form.get("extracted_text", "")
-            logger.info("Ricevuto testo OCR lato client")
-        elif "file" in request.files:
-            texts = []
-            for file in request.files.getlist("file"):
-                filepath = os.path.join(UPLOAD_FOLDER, file.filename)
-                file.save(filepath)
-                texts.append(extract_text_from_file(filepath))
-                try:
-                    os.remove(filepath)
-                except:
-                    logger.warning(f"Impossibile eliminare file {filepath}")
-            full_text = "\n\n".join(texts)
-        else:
-            return jsonify({"error": "Nessun file o testo inviato"}), 400
+        texts = []
+        for file in request.files.getlist("file"):
+            filepath = os.path.join(UPLOAD_FOLDER, file.filename)
+            file.save(filepath)
+            texts.append(extract_text_from_file(filepath))
+            os.remove(filepath)
+        full_text = "\n\n".join(texts)
+        return jsonify({"full_text": full_text, "status": "uploaded"})
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
 
+@app.route("/analyze", methods=["POST"])
+def analyze_text():
+    try:
+        full_text = request.form.get("extracted_text", "")
         prompt_type = request.form.get("prompt_type", "simple")
         custom_prompt = request.form.get("custom_prompt", "")
         prompt = get_prompt(prompt_type, custom_prompt, full_text)
 
         summary = generate_summary(prompt)
         create_word_doc(summary, full_text)
-
-        return jsonify({"summary": summary, "full_text": full_text, "status": "success"})
+        return jsonify({"summary": summary, "status": "success"})
     except Exception as e:
         logger.error(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
@@ -230,6 +220,22 @@ def download_summary():
     if os.path.exists(file_path):
         return send_file(file_path, as_attachment=True)
     return jsonify({"error": "File non disponibile"}), 404
+
+@app.route("/reset", methods=["POST"])
+def reset():
+    """Pulisce cartelle uploads e archive"""
+    try:
+        if os.path.exists(UPLOAD_FOLDER):
+            shutil.rmtree(UPLOAD_FOLDER)
+            os.makedirs(UPLOAD_FOLDER)
+        if os.path.exists(ARCHIVE_FOLDER):
+            shutil.rmtree(ARCHIVE_FOLDER)
+            os.makedirs(ARCHIVE_FOLDER)
+        logger.info("Cartelle pulite (uploads/ e archive/)")
+        return jsonify({"status": "reset_done"})
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/test")
 def test():
