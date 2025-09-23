@@ -1,218 +1,290 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Assistente Referti Medici</title>
-    <style>
-        body {
-            font-family: sans-serif;
-            background-color: #f0f4f8;
-            color: #333;
-            margin: 2em;
-            text-align: center;
-        }
-        .container {
-            max-width: 900px;
-            margin: auto;
-            background: #fff;
-            padding: 2em;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-        h1 { color: #007bff; }
-        .upload-area {
-            border: 2px dashed #ccc;
-            padding: 2em;
-            border-radius: 10px;
-            margin-top: 1em;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        .upload-area:hover {
-            border-color: #007bff;
-            background-color: #f5faff;
-        }
-        .results-area {
-            margin-top: 2em;
-            text-align: left;
-        }
-        pre {
-            background: #eee;
-            padding: 1em;
-            border-radius: 6px;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }
-        select, textarea {
-            width: 100%;
-            padding: 0.8em;
-            margin: 1em 0;
-            border-radius: 6px;
-            border: 1px solid #ccc;
-            font-size: 14px;
-        }
-        button {
-            padding: 12px 24px;
-            margin-top: 1em;
-            border: none;
-            border-radius: 6px;
-            background-color: #28a745;
-            color: white;
-            font-size: 16px;
-            cursor: pointer;
-        }
-        button:hover { background-color: #218838; }
-        .loading { color: #007bff; font-weight: bold; margin-top: 1em; }
-        .log-box {
-            background: #f0f9ff;
-            border-left: 4px solid #007bff;
-            padding: 1em;
-            margin-top: 1em;
-            text-align: left;
-            font-size: 14px;
-            border-radius: 6px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-        .preview { margin-top: 1em; max-width: 100%; border-radius: 8px; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assistente Referti Medici</title>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      background-color: #f0f4f8;
+      color: #333;
+      margin: 2em;
+      text-align: center;
+    }
+    .container {
+      max-width: 900px;
+      margin: auto;
+      background: #fff;
+      padding: 2em;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    h1 { color: #007bff; }
+    .upload-area {
+      border: 2px dashed #ccc;
+      padding: 2em;
+      border-radius: 10px;
+      margin-top: 1em;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .upload-area.dragover {
+      border-color: #007bff;
+      background-color: #f5faff;
+    }
+    .results-area {
+      margin-top: 2em;
+      text-align: left;
+    }
+    pre {
+      background: #eee;
+      padding: 1em;
+      border-radius: 6px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    select, textarea {
+      width: 100%;
+      padding: 0.8em;
+      margin: 1em 0;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+    button {
+      padding: 12px 24px;
+      margin-top: 1em;
+      border: none;
+      border-radius: 6px;
+      background-color: #28a745;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    button:hover { background-color: #218838; }
+    .loading { color: #007bff; font-weight: bold; margin-top: 1em; }
+    .log-box {
+      background: #f0f9ff;
+      border-left: 4px solid #007bff;
+      padding: 1em;
+      margin-top: 1em;
+      text-align: left;
+      font-size: 14px;
+      border-radius: 6px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .preview { margin-top: 1em; max-width: 100%; border-radius: 8px; }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🩺 Assistente Referti Medici</h1>
-        <p>Carica il tuo referto medico (PDF o immagine) e scegli il livello di dettaglio del riassunto.</p>
+  <div class="container">
+    <h1>🩺 Assistente Referti Medici</h1>
+    <p>Carica il tuo referto medico (PDF o immagine) e scegli il livello di dettaglio del riassunto.</p>
 
-        <!-- Prompt selector -->
-        <label for="promptSelector"><strong>🔎 Scegli il tipo di analisi:</strong></label>
-        <select id="promptSelector" onchange="toggleCustomPrompt()">
-            <option value="simple">Semplice (per paziente)</option>
-            <option value="intermediate">Intermedio (per medico di base)</option>
-            <option value="detailed">Dettagliato (per specialista)</option>
-            <option value="custom">Personalizzato</option>
-        </select>
+    <!-- Prompt selector -->
+    <label for="promptSelector"><strong>🔎 Scegli il tipo di analisi:</strong></label>
+    <select id="promptSelector" onchange="toggleCustomPrompt()">
+      <option value="simple">Semplice (per paziente)</option>
+      <option value="intermediate">Intermedio (per medico di base)</option>
+      <option value="detailed">Dettagliato (per specialista)</option>
+      <option value="custom">Personalizzato</option>
+    </select>
 
-        <textarea id="customPrompt" placeholder="Scrivi qui il tuo prompt personalizzato..." style="display:none;"></textarea>
+    <textarea id="customPrompt" placeholder="Scrivi qui il tuo prompt personalizzato..." style="display:none;"></textarea>
 
-        <!-- Upload -->
-        <div class="upload-area" onclick="document.getElementById('fileInput').click();">
-            <p><strong>Clicca o trascina qui i tuoi file</strong></p>
-            <input type="file" id="fileInput" name="file" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;">
-        </div>
-
-        <!-- Anteprima -->
-        <div id="preview"></div>
-
-        <div id="loadingMessage" class="loading" style="display:none;">
-            Elaborazione in corso... Attendi qualche secondo.
-        </div>
-
-        <!-- Log -->
-        <div id="logBox" class="log-box" style="display:none;"></div>
-
-        <!-- Risultati -->
-        <div id="results" class="results-area" style="display:none;">
-            <h2>✅ Riassunto</h2>
-            <div id="summaryText"></div>
-            <hr>
-            <h2>📄 Testo Integrale</h2>
-            <pre id="fullText"></pre>
-            <button id="downloadBtn">📥 Scarica Riassunto (Word)</button>
-        </div>
+    <!-- Upload area -->
+    <div class="upload-area" id="uploadArea">
+      <p><strong>Clicca o trascina qui i tuoi file</strong></p>
+      <input type="file" id="fileInput" name="file" accept=".pdf,.jpg,.jpeg,.png" multiple style="display:none;">
     </div>
 
-    <script>
-        const fileInput = document.getElementById("fileInput");
-        const preview = document.getElementById("preview");
-        const loadingMessage = document.getElementById("loadingMessage");
-        const logBox = document.getElementById("logBox");
-        const results = document.getElementById("results");
-        const summaryText = document.getElementById("summaryText");
-        const fullText = document.getElementById("fullText");
-        const downloadBtn = document.getElementById("downloadBtn");
+    <!-- Anteprima -->
+    <div id="preview"></div>
 
-        function log(message) {
-            logBox.innerHTML += `<div>🔹 ${message}</div>`;
-            logBox.style.display = "block";
+    <div id="loadingMessage" class="loading" style="display:none;">
+      Elaborazione in corso... Attendi qualche secondo.
+    </div>
+
+    <!-- Log -->
+    <div id="logBox" class="log-box" style="display:none;"></div>
+
+    <!-- Risultati -->
+    <div id="results" class="results-area" style="display:none;">
+      <h2>✅ Riassunto</h2>
+      <div id="summaryText"></div>
+      <hr>
+      <h2>📄 Testo Integrale</h2>
+      <pre id="fullText"></pre>
+      <button id="downloadBtn">📥 Scarica Riassunto (Word)</button>
+    </div>
+  </div>
+
+  <script>
+    const fileInput = document.getElementById("fileInput");
+    const uploadArea = document.getElementById("uploadArea");
+    const preview = document.getElementById("preview");
+    const loadingMessage = document.getElementById("loadingMessage");
+    const logBox = document.getElementById("logBox");
+    const results = document.getElementById("results");
+    const summaryText = document.getElementById("summaryText");
+    const fullText = document.getElementById("fullText");
+    const downloadBtn = document.getElementById("downloadBtn");
+
+    function log(message) {
+      logBox.innerHTML += `<div>🔹 ${message}</div>`;
+      logBox.style.display = "block";
+    }
+
+    function toggleCustomPrompt() {
+      const selector = document.getElementById("promptSelector");
+      const customPrompt = document.getElementById("customPrompt");
+      customPrompt.style.display = selector.value === "custom" ? "block" : "none";
+    }
+
+    // Drag & Drop
+    uploadArea.addEventListener("click", () => fileInput.click());
+    uploadArea.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      uploadArea.classList.add("dragover");
+    });
+    uploadArea.addEventListener("dragleave", (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove("dragover");
+    });
+    uploadArea.addEventListener("drop", (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove("dragover");
+      fileInput.files = e.dataTransfer.files;
+      handleFiles(fileInput.files);
+    });
+
+    fileInput.addEventListener("change", () => handleFiles(fileInput.files));
+
+    // Preview
+    function handleFiles(files) {
+      preview.innerHTML = "";
+      for (const file of files) {
+        if (file.type.startsWith("image/")) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const img = document.createElement("img");
+            img.src = e.target.result;
+            img.className = "preview";
+            preview.appendChild(img);
+          };
+          reader.readAsDataURL(file);
+        } else {
+          preview.innerHTML += `<p>📄 ${file.name}</p>`;
         }
+      }
+      decideOCRStrategy(files);
+    }
 
-        function toggleCustomPrompt() {
-            const selector = document.getElementById("promptSelector");
-            const customPrompt = document.getElementById("customPrompt");
-            if (selector.value === "custom") {
-                customPrompt.style.display = "block";
-            } else {
-                customPrompt.style.display = "none";
-            }
+    // Benchmark OCR
+    async function benchmarkOCR() {
+      const start = performance.now();
+      await Tesseract.recognize(new Blob([new Uint8Array([0])]), "eng").catch(() => {});
+      return performance.now() - start;
+    }
+
+    async function decideOCRStrategy(files) {
+      log("Esecuzione benchmark OCR...");
+      const time = await benchmarkOCR();
+      log(`⏱ Benchmark OCR completato in ${time.toFixed(0)} ms`);
+
+      const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+      if (!isMobile && time < 1000) {
+        log("➡️ Uso OCR lato client (Tesseract.js)");
+        runClientOCR(files);
+      } else {
+        log("➡️ Invio file al server per elaborazione");
+        runServerProcessing(files);
+      }
+    }
+
+    // OCR lato client
+    async function runClientOCR(files) {
+      loadingMessage.style.display = "block";
+      let extractedText = "";
+      for (const file of files) {
+        if (file.type.startsWith("image/")) {
+          log(`OCR client su immagine: ${file.name}`);
+          const result = await Tesseract.recognize(file, "ita+eng");
+          extractedText += result.data.text + "\n";
+        } else {
+          // Per PDF o altri → server
+          log(`File ${file.name} inviato al server (OCR client non supportato).`);
+          runServerProcessing(files);
+          return;
         }
+      }
+      sendToServer(extractedText);
+    }
 
-        // Anteprima file
-        fileInput.addEventListener("change", () => {
-            preview.innerHTML = "";
-            for (const file of fileInput.files) {
-                if (file.type.startsWith("image/")) {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        const img = document.createElement("img");
-                        img.src = e.target.result;
-                        img.className = "preview";
-                        preview.appendChild(img);
-                    };
-                    reader.readAsDataURL(file);
-                } else {
-                    preview.innerHTML += `<p>📄 ${file.name}</p>`;
-                }
-            }
-        });
+    // OCR lato server
+    async function runServerProcessing(files) {
+      loadingMessage.style.display = "block";
+      const formData = new FormData();
+      for (const file of files) {
+        formData.append("file", file);
+      }
+      const selector = document.getElementById("promptSelector").value;
+      const customPrompt = document.getElementById("customPrompt").value;
+      formData.append("prompt_type", selector);
+      if (selector === "custom") {
+        formData.append("custom_prompt", customPrompt);
+      }
 
-        async function processFiles() {
-            if (fileInput.files.length === 0) {
-                alert("Seleziona almeno un file");
-                return;
-            }
+      try {
+        const response = await fetch("/upload", { method: "POST", body: formData });
+        const data = await response.json();
+        showResults(data);
+      } catch (error) {
+        log("❌ Errore di rete: " + error.message);
+      } finally {
+        loadingMessage.style.display = "none";
+      }
+    }
 
-            log("Caricamento file...");
-            loadingMessage.style.display = "block";
-            results.style.display = "none";
+    // Invio testo già OCRizzato al server
+    async function sendToServer(extractedText) {
+      const formData = new FormData();
+      formData.append("extracted_text", extractedText);
+      const selector = document.getElementById("promptSelector").value;
+      const customPrompt = document.getElementById("customPrompt").value;
+      formData.append("prompt_type", selector);
+      if (selector === "custom") {
+        formData.append("custom_prompt", customPrompt);
+      }
 
-            const formData = new FormData();
-            for (const file of fileInput.files) {
-                formData.append("file", file);
-            }
+      try {
+        const response = await fetch("/upload", { method: "POST", body: formData });
+        const data = await response.json();
+        showResults(data);
+      } catch (error) {
+        log("❌ Errore di rete: " + error.message);
+      } finally {
+        loadingMessage.style.display = "none";
+      }
+    }
 
-            // Prompt scelto
-            const selector = document.getElementById("promptSelector").value;
-            const customPrompt = document.getElementById("customPrompt").value;
-            formData.append("prompt_type", selector);
-            if (selector === "custom") {
-                formData.append("custom_prompt", customPrompt);
-            }
+    function showResults(data) {
+      if (data.status === "success") {
+        summaryText.innerHTML = `<div style="background:#e8f5e8; padding:1em; border-radius:6px;">${data.summary}</div>`;
+        fullText.textContent = data.full_text;
+        results.style.display = "block";
+        log("✅ Elaborazione completata");
+      } else {
+        log("❌ Errore: " + data.error);
+      }
+    }
 
-            try {
-                const response = await fetch("/upload", { method: "POST", body: formData });
-                const data = await response.json();
-
-                if (data.status === "success") {
-                    summaryText.innerHTML = `<div style="background:#e8f5e8; padding:1em; border-radius:6px;">${data.summary}</div>`;
-                    fullText.textContent = data.full_text;
-                    results.style.display = "block";
-                    log("✅ Elaborazione completata");
-                } else {
-                    log("❌ Errore: " + data.error);
-                }
-            } catch (error) {
-                log("❌ Errore di rete: " + error.message);
-            } finally {
-                loadingMessage.style.display = "none";
-            }
-        }
-
-        downloadBtn.addEventListener("click", () => {
-            window.location.href = "/download-summary";
-        });
-
-        // Avvio elaborazione quando scelti i file
-        fileInput.addEventListener("change", processFiles);
-    </script>
+    downloadBtn.addEventListener("click", () => {
+      window.location.href = "/download-summary";
+    });
+  </script>
 </body>
 </html>

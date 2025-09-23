@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 # Gemini API
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
+# Flask setup
 app = Flask(__name__, template_folder="templates")
 UPLOAD_FOLDER = "uploads"
 ARCHIVE_FOLDER = "archive"
@@ -33,15 +34,17 @@ os.makedirs(ARCHIVE_FOLDER, exist_ok=True)
 def configure_tesseract():
     try:
         pytesseract.get_tesseract_version()
-        logger.info("Tesseract OK")
+        logger.info("Tesseract configurato correttamente")
     except Exception as e:
         logger.error(f"Errore Tesseract: {e}")
         for path in ["/usr/bin/tesseract", "/usr/local/bin/tesseract"]:
             if os.path.exists(path):
                 pytesseract.pytesseract.tesseract_cmd = path
+                logger.info(f"Configurato Tesseract da path: {path}")
                 break
 configure_tesseract()
 
+# --- Preprocessing immagini ---
 def preprocess_image_for_ocr(image_path):
     img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     if img is None:
@@ -62,16 +65,22 @@ def extract_text_from_file(file_path):
                 page_text = page.get_text()
                 if page_text.strip():
                     text += page_text
+                    logger.info(f"Testo estratto da pagina {page_num} (PDF digitale)")
                 else:
                     image_list = page.get_images(full=True)
+                    if not image_list:
+                        continue
                     for img_index, img in enumerate(image_list, start=1):
                         xref = img[0]
                         base_image = doc.extract_image(xref)
                         image_bytes = base_image["image"]
                         img_ext = base_image["ext"]
-                        img_path = os.path.join(UPLOAD_FOLDER, f"page{page_num}_img{img_index}.{img_ext}")
+                        img_path = os.path.join(
+                            UPLOAD_FOLDER, f"page{page_num}_img{img_index}.{img_ext}"
+                        )
                         with open(img_path, "wb") as f:
                             f.write(image_bytes)
+
                         preprocessed = preprocess_image_for_ocr(img_path)
                         config = r"--oem 1 --psm 6 -l ita+eng"
                         if preprocessed is not None:
@@ -79,9 +88,15 @@ def extract_text_from_file(file_path):
                         else:
                             pil_img = Image.open(img_path)
                             page_text = pytesseract.image_to_string(pil_img, config=config)
+
                         text += page_text + "\n"
-                        os.remove(img_path)
+                        try:
+                            os.remove(img_path)
+                        except:
+                            logger.warning(f"Impossibile eliminare file temporaneo {img_path}")
+                    logger.info(f"OCR completato su pagina {page_num}")
             doc.close()
+
         elif ext in [".png", ".jpg", ".jpeg"]:
             preprocessed = preprocess_image_for_ocr(file_path)
             config = r"--oem 1 --psm 6 -l ita+eng"
@@ -92,30 +107,41 @@ def extract_text_from_file(file_path):
                 if image.mode != "RGB":
                     image = image.convert("RGB")
                 text = pytesseract.image_to_string(image, config=config)
+            logger.info(f"OCR completato su immagine {file_path}")
+
         elif ext == ".txt":
             with open(file_path, "r", encoding="utf-8") as f:
                 text = f.read()
+
         elif ext == ".docx":
             doc = Document(file_path)
             for para in doc.paragraphs:
                 text += para.text + "\n"
+
         elif ext == ".xlsx":
             xls = pd.read_excel(file_path, sheet_name=None)
             for sheet_name, df in xls.items():
                 text += f"\n--- Foglio: {sheet_name} ---\n"
                 text += df.to_string(index=False)
+
+        else:
+            text = "Formato non supportato."
+            logger.warning(f"Formato non supportato: {ext}")
+
     except Exception as e:
         text = f"Errore estrazione testo: {str(e)}"
+        logger.error(traceback.format_exc())
+
     return text.strip() if text else "Nessun testo estratto"
 
 # --- Prompt generator ---
 def get_prompt(base_type, custom, text):
     if base_type == "simple":
-        return f"Analizza questo referto medico e fornisci un riassunto chiaro per un paziente:\n\n{text}"
+        return f"Analizza questo referto medico e fornisci un riassunto chiaro e semplice per un paziente:\n\n{text}"
     elif base_type == "intermediate":
         return f"""Analizza questo referto medico e fornisci un riassunto strutturato.
         - Diagnosi principale
-        - Parametri fuori norma
+        - Parametri fuori norma con valori numerici
         - Terapie o raccomandazioni
         - Considerazioni cliniche sintetiche
         Testo referto:
@@ -142,6 +168,7 @@ def generate_summary(prompt):
         logger.error(traceback.format_exc())
         return f"Errore generazione riassunto: {str(e)}"
 
+# --- Word export ---
 def create_word_doc(summary, full_text):
     doc = Document()
     doc.add_heading("Riassunto Referto Medico", 0)
@@ -161,21 +188,34 @@ def home():
 @app.route("/upload", methods=["POST"])
 def upload_file():
     try:
-        if "file" not in request.files and "extracted_text" not in request.form:
-            return jsonify({"error": "Nessun file inviato"}), 400
+        full_text = ""
+        # Caso 1: testo OCR già fornito dal client
+        if "extracted_text" in request.form:
+            full_text = request.form.get("extracted_text", "")
+            logger.info("Ricevuto testo OCR lato client")
 
-        texts = []
-        for file in request.files.getlist("file"):
-            filepath = os.path.join(UPLOAD_FOLDER, file.filename)
-            file.save(filepath)
-            texts.append(extract_text_from_file(filepath))
-            os.remove(filepath)
-        full_text = "\n\n".join(texts)
+        # Caso 2: file da processare lato server
+        elif "file" in request.files:
+            texts = []
+            for file in request.files.getlist("file"):
+                filepath = os.path.join(UPLOAD_FOLDER, file.filename)
+                file.save(filepath)
+                texts.append(extract_text_from_file(filepath))
+                try:
+                    os.remove(filepath)
+                except:
+                    logger.warning(f"Impossibile eliminare file {filepath}")
+            full_text = "\n\n".join(texts)
 
+        else:
+            return jsonify({"error": "Nessun file o testo inviato"}), 400
+
+        # Prompt
         prompt_type = request.form.get("prompt_type", "simple")
         custom_prompt = request.form.get("custom_prompt", "")
         prompt = get_prompt(prompt_type, custom_prompt, full_text)
 
+        # Riassunto
         summary = generate_summary(prompt)
         create_word_doc(summary, full_text)
 
