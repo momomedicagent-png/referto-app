@@ -1,137 +1,218 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Assistente Documenti Salute</title>
-  <style>
-    body { font-family: sans-serif; text-align: center; margin: 2em; background-color: #f0f4f8; color: #333; }
-    .container { max-width: 800px; margin: auto; padding: 2em; background: white; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
-    h1 { color: #007bff; }
-    .upload-area { border: 2px dashed #ccc; padding: 2em; border-radius: 10px; cursor: pointer; transition: all 0.3s ease; }
-    .upload-area:hover { border-color: #2196f3; background-color: #f5f5f5; }
-    .upload-area.dragover { background-color: #e3f2fd !important; border-color: #2196f3 !important; }
-    .results-area { margin-top: 2em; text-align: left; }
-    pre { background-color: #eee; padding: 1em; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word; }
-    button { padding: 10px 20px; font-size: 16px; border-radius: 5px; border: none; cursor: pointer; margin: 5px; }
-    #downloadBtn { background-color: #28a745; color: white; }
-    .error { background-color: #f8d7da; color: #721c24; padding: 1em; border-radius: 5px; margin: 1em 0; }
-    .debug { background-color: #eef6fb; color: #0c5460; padding: 1em; border-radius: 5px; margin: 1em 0; text-align: left; font-size: 0.9em; }
-    .loading { color: #007bff; font-weight: bold; }
-    .preview { margin-top: 1em; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
-    .preview img { max-width: 150px; border: 1px solid #ddd; border-radius: 5px; }
-    .preview p { font-size: 0.9em; background: #f5f5f5; padding: 5px 10px; border-radius: 5px; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assistente Referti Medici</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: #f0f4f8;
+            color: #333;
+            margin: 2em;
+            text-align: center;
+        }
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background: #fff;
+            padding: 2em;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        h1 { color: #007bff; }
+        .upload-area {
+            border: 2px dashed #ccc;
+            padding: 2em;
+            border-radius: 10px;
+            margin-top: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .upload-area:hover {
+            border-color: #007bff;
+            background-color: #f5faff;
+        }
+        .results-area {
+            margin-top: 2em;
+            text-align: left;
+        }
+        pre {
+            background: #eee;
+            padding: 1em;
+            border-radius: 6px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        select, textarea {
+            width: 100%;
+            padding: 0.8em;
+            margin: 1em 0;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            font-size: 14px;
+        }
+        button {
+            padding: 12px 24px;
+            margin-top: 1em;
+            border: none;
+            border-radius: 6px;
+            background-color: #28a745;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:hover { background-color: #218838; }
+        .loading { color: #007bff; font-weight: bold; margin-top: 1em; }
+        .log-box {
+            background: #f0f9ff;
+            border-left: 4px solid #007bff;
+            padding: 1em;
+            margin-top: 1em;
+            text-align: left;
+            font-size: 14px;
+            border-radius: 6px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .preview { margin-top: 1em; max-width: 100%; border-radius: 8px; }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <h1>🩺 Assistente Documenti Salute</h1>
-    <p>Carica uno o più referti (PDF o immagini) per ottenere un riassunto semplice.</p>
-    
-    <div class="upload-area" onclick="document.getElementById('fileInput').click();">
-      <p><strong>Clicca o trascina qui i tuoi file</strong></p>
-      <input type="file" id="fileInput" name="file" multiple accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx,.txt" style="display:none;">
+    <div class="container">
+        <h1>🩺 Assistente Referti Medici</h1>
+        <p>Carica il tuo referto medico (PDF o immagine) e scegli il livello di dettaglio del riassunto.</p>
+
+        <!-- Prompt selector -->
+        <label for="promptSelector"><strong>🔎 Scegli il tipo di analisi:</strong></label>
+        <select id="promptSelector" onchange="toggleCustomPrompt()">
+            <option value="simple">Semplice (per paziente)</option>
+            <option value="intermediate">Intermedio (per medico di base)</option>
+            <option value="detailed">Dettagliato (per specialista)</option>
+            <option value="custom">Personalizzato</option>
+        </select>
+
+        <textarea id="customPrompt" placeholder="Scrivi qui il tuo prompt personalizzato..." style="display:none;"></textarea>
+
+        <!-- Upload -->
+        <div class="upload-area" onclick="document.getElementById('fileInput').click();">
+            <p><strong>Clicca o trascina qui i tuoi file</strong></p>
+            <input type="file" id="fileInput" name="file" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;">
+        </div>
+
+        <!-- Anteprima -->
+        <div id="preview"></div>
+
+        <div id="loadingMessage" class="loading" style="display:none;">
+            Elaborazione in corso... Attendi qualche secondo.
+        </div>
+
+        <!-- Log -->
+        <div id="logBox" class="log-box" style="display:none;"></div>
+
+        <!-- Risultati -->
+        <div id="results" class="results-area" style="display:none;">
+            <h2>✅ Riassunto</h2>
+            <div id="summaryText"></div>
+            <hr>
+            <h2>📄 Testo Integrale</h2>
+            <pre id="fullText"></pre>
+            <button id="downloadBtn">📥 Scarica Riassunto (Word)</button>
+        </div>
     </div>
 
-    <div id="filePreview" class="preview"></div>
+    <script>
+        const fileInput = document.getElementById("fileInput");
+        const preview = document.getElementById("preview");
+        const loadingMessage = document.getElementById("loadingMessage");
+        const logBox = document.getElementById("logBox");
+        const results = document.getElementById("results");
+        const summaryText = document.getElementById("summaryText");
+        const fullText = document.getElementById("fullText");
+        const downloadBtn = document.getElementById("downloadBtn");
 
-    <div id="loadingMessage" style="display: none;" class="loading">⏳ Elaborazione in corso...</div>
-
-    <div id="debugInfo" class="debug" style="display: none;">
-      <h3>📋 Log Elaborazione</h3>
-      <div id="debugContent"></div>
-    </div>
-
-    <div id="errorMessage" class="error" style="display: none;"></div>
-
-    <div id="results" class="results-area" style="display: none;">
-      <h2>✅ Riassunto Semplice</h2>
-      <div id="summaryText"></div>
-      <hr>
-      <h2>📄 Testo Integrale</h2>
-      <pre id="fullText"></pre>
-      <button id="downloadBtn">📥 Scarica Riassunto (Word)</button>
-    </div>
-  </div>
-
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-  <script>
-    const fileInput = document.getElementById('fileInput');
-    const loadingMessage = document.getElementById('loadingMessage');
-    const resultsArea = document.getElementById('results');
-    const summaryText = document.getElementById('summaryText');
-    const fullText = document.getElementById('fullText');
-    const downloadBtn = document.getElementById('downloadBtn');
-    const errorMessage = document.getElementById('errorMessage');
-    const debugInfo = document.getElementById('debugInfo');
-    const debugContent = document.getElementById('debugContent');
-    const uploadArea = document.querySelector('.upload-area');
-    const filePreview = document.getElementById('filePreview');
-
-    let useClientOCR = false;
-
-    function showDebug(msg){ debugContent.innerHTML += `<div>🔹 ${msg}</div>`; debugInfo.style.display='block'; }
-    function showError(msg){ errorMessage.innerHTML=`❌ ${msg}`; errorMessage.style.display='block'; loadingMessage.style.display='none'; }
-
-    async function deviceIsFastEnough(){
-      try{
-        const canvas=document.createElement("canvas"); const ctx=canvas.getContext("2d");
-        canvas.width=200; canvas.height=50; ctx.font="20px Arial"; ctx.fillText("TEST OCR",10,30);
-        const dataUrl=canvas.toDataURL(); const start=performance.now();
-        const worker=await Tesseract.createWorker('eng'); const {data:{text}}=await worker.recognize(dataUrl);
-        await worker.terminate(); const elapsed=performance.now()-start;
-        showDebug(`Benchmark OCR: "${text.trim()}" in ${elapsed.toFixed(0)} ms`); return elapsed<2000;
-      }catch(e){ showDebug("Errore benchmark OCR: "+e.message); return false; }
-    }
-    async function decideOCRStrategy(){ useClientOCR=await deviceIsFastEnough(); showDebug(`Strategia OCR: ${useClientOCR?"Client":"Server"}`); }
-
-    function showFilePreview(file){
-      const ext=file.name.split('.').pop().toLowerCase();
-      if(['jpg','jpeg','png'].includes(ext)){
-        const reader=new FileReader();
-        reader.onload=(e)=>{ const img=document.createElement("img"); img.src=e.target.result; filePreview.appendChild(img); };
-        reader.readAsDataURL(file);
-      }else{ const p=document.createElement("p"); p.textContent=`📄 ${file.name}`; filePreview.appendChild(p); }
-    }
-
-    async function processFiles(files){
-      if(!files||files.length===0)return;
-      filePreview.innerHTML=""; [...files].forEach(showFilePreview);
-      showDebug(`Caricati ${files.length} file.`);
-      loadingMessage.style.display='block'; resultsArea.style.display='none'; errorMessage.style.display='none';
-
-      try{
-        const imageExts=['jpg','jpeg','png']; const allImages=[...files].every(f=>imageExts.includes(f.name.split('.').pop().toLowerCase()));
-        if(useClientOCR && allImages){
-          showDebug("OCR client su immagini...");
-          let texts=[];
-          for(const file of files){
-            const worker=await Tesseract.createWorker('ita+eng'); const {data:{text}}=await worker.recognize(file); await worker.terminate();
-            texts.push(text); showDebug(`OCR completato per ${file.name}`);
-          }
-          const mergedText=texts.join("\n\n");
-          const response=await fetch('/upload',{method:'POST',headers:{"Content-Type":"application/json"},body:JSON.stringify({extracted_text:mergedText})});
-          const data=await response.json();
-          if(response.ok&&data.status==='success'){ summaryText.innerHTML=`<div style="background:#e8f5e8;padding:1em;border-radius:5px;">${data.summary}</div>`; fullText.textContent=data.full_text; resultsArea.style.display='block'; showDebug("✅ Client OCR completato"); }
-          else showError(data.error||'Errore server lato riassunto.');
-        } else {
-          showDebug("Invio al server...");
-          const formData=new FormData(); [...files].forEach(f=>formData.append('file',f));
-          const response=await fetch('/upload',{method:'POST',body:formData}); const data=await response.json();
-          if(response.ok&&data.status==='success'){ summaryText.innerHTML=`<div style="background:#e8f5e8;padding:1em;border-radius:5px;">${data.summary}</div>`; fullText.textContent=data.full_text; resultsArea.style.display='block'; showDebug("✅ Server elaborazione completata"); }
-          else showError(data.error||'Errore server OCR.');
+        function log(message) {
+            logBox.innerHTML += `<div>🔹 ${message}</div>`;
+            logBox.style.display = "block";
         }
-      }catch(e){ showError("Errore: "+e.message); showDebug("Errore: "+e.message); }
-      finally{ loadingMessage.style.display='none'; }
-    }
 
-    fileInput.addEventListener('change',async e=>{ await processFiles(e.target.files); });
-    uploadArea.addEventListener('dragover',e=>{ e.preventDefault(); uploadArea.classList.add('dragover'); });
-    uploadArea.addEventListener('dragleave',e=>{ e.preventDefault(); uploadArea.classList.remove('dragover'); });
-    uploadArea.addEventListener('drop',async e=>{ e.preventDefault(); uploadArea.classList.remove('dragover'); await processFiles(e.dataTransfer.files); });
-    downloadBtn.addEventListener('click',()=>{ window.location.href='/download-summary'; });
+        function toggleCustomPrompt() {
+            const selector = document.getElementById("promptSelector");
+            const customPrompt = document.getElementById("customPrompt");
+            if (selector.value === "custom") {
+                customPrompt.style.display = "block";
+            } else {
+                customPrompt.style.display = "none";
+            }
+        }
 
-    decideOCRStrategy();
-  </script>
+        // Anteprima file
+        fileInput.addEventListener("change", () => {
+            preview.innerHTML = "";
+            for (const file of fileInput.files) {
+                if (file.type.startsWith("image/")) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const img = document.createElement("img");
+                        img.src = e.target.result;
+                        img.className = "preview";
+                        preview.appendChild(img);
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    preview.innerHTML += `<p>📄 ${file.name}</p>`;
+                }
+            }
+        });
+
+        async function processFiles() {
+            if (fileInput.files.length === 0) {
+                alert("Seleziona almeno un file");
+                return;
+            }
+
+            log("Caricamento file...");
+            loadingMessage.style.display = "block";
+            results.style.display = "none";
+
+            const formData = new FormData();
+            for (const file of fileInput.files) {
+                formData.append("file", file);
+            }
+
+            // Prompt scelto
+            const selector = document.getElementById("promptSelector").value;
+            const customPrompt = document.getElementById("customPrompt").value;
+            formData.append("prompt_type", selector);
+            if (selector === "custom") {
+                formData.append("custom_prompt", customPrompt);
+            }
+
+            try {
+                const response = await fetch("/upload", { method: "POST", body: formData });
+                const data = await response.json();
+
+                if (data.status === "success") {
+                    summaryText.innerHTML = `<div style="background:#e8f5e8; padding:1em; border-radius:6px;">${data.summary}</div>`;
+                    fullText.textContent = data.full_text;
+                    results.style.display = "block";
+                    log("✅ Elaborazione completata");
+                } else {
+                    log("❌ Errore: " + data.error);
+                }
+            } catch (error) {
+                log("❌ Errore di rete: " + error.message);
+            } finally {
+                loadingMessage.style.display = "none";
+            }
+        }
+
+        downloadBtn.addEventListener("click", () => {
+            window.location.href = "/download-summary";
+        });
+
+        // Avvio elaborazione quando scelti i file
+        fileInput.addEventListener("change", processFiles);
+    </script>
 </body>
 </html>
