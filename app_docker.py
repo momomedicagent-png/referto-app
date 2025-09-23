@@ -62,14 +62,19 @@ def extract_text_from_file(file_path):
         if ext == ".pdf":
             doc = fitz.open(file_path)
             for page_num, page in enumerate(doc, start=1):
-                page_text = page.get_text()
-                if page_text.strip():
-                    text += page_text
-                    logger.info(f"Testo estratto da pagina {page_num} (PDF digitale)")
+                page_text = page.get_text().strip()
+
+                if page_text and len(page_text) > 10:
+                    # PDF digitale → testo estratto
+                    text += page_text + "\n"
+                    logger.info(f"Pagina {page_num}: testo digitale estratto")
                 else:
+                    # PDF immagine → OCR
                     image_list = page.get_images(full=True)
                     if not image_list:
+                        logger.warning(f"Pagina {page_num}: nessun testo o immagine trovata")
                         continue
+
                     for img_index, img in enumerate(image_list, start=1):
                         xref = img[0]
                         base_image = doc.extract_image(xref)
@@ -94,7 +99,8 @@ def extract_text_from_file(file_path):
                             os.remove(img_path)
                         except:
                             logger.warning(f"Impossibile eliminare file temporaneo {img_path}")
-                    logger.info(f"OCR completato su pagina {page_num}")
+
+                    logger.info(f"Pagina {page_num}: OCR completato")
             doc.close()
 
         elif ext in [".png", ".jpg", ".jpeg"]:
@@ -189,12 +195,9 @@ def home():
 def upload_file():
     try:
         full_text = ""
-        # Caso 1: testo OCR già fornito dal client
         if "extracted_text" in request.form:
             full_text = request.form.get("extracted_text", "")
             logger.info("Ricevuto testo OCR lato client")
-
-        # Caso 2: file da processare lato server
         elif "file" in request.files:
             texts = []
             for file in request.files.getlist("file"):
@@ -206,16 +209,13 @@ def upload_file():
                 except:
                     logger.warning(f"Impossibile eliminare file {filepath}")
             full_text = "\n\n".join(texts)
-
         else:
             return jsonify({"error": "Nessun file o testo inviato"}), 400
 
-        # Prompt
         prompt_type = request.form.get("prompt_type", "simple")
         custom_prompt = request.form.get("custom_prompt", "")
         prompt = get_prompt(prompt_type, custom_prompt, full_text)
 
-        # Riassunto
         summary = generate_summary(prompt)
         create_word_doc(summary, full_text)
 
