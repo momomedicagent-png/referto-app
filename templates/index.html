@@ -3,75 +3,208 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Assistente Referti Medici</title>
+  <title>🩺 Assistente Referti Medici</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #f4f7fb; margin: 0; padding: 0; }
-    .container { max-width: 800px; margin: auto; padding: 20px; }
-    h1 { text-align: center; color: #1976d2; }
-    .upload-box { border: 2px dashed #1976d2; border-radius: 8px; padding: 30px; text-align: center; color: #555; background: #fff; margin-bottom: 20px; cursor: pointer; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: 0; padding: 0; min-height: 100vh; }
+    .container { max-width: 900px; margin: auto; padding: 20px; }
+    h1 { text-align: center; color: white; margin-bottom: 10px; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+    .subtitle { text-align: center; color: rgba(255,255,255,0.9); margin-bottom: 30px; }
+    .upload-box { 
+      border: 3px dashed rgba(255,255,255,0.5); 
+      border-radius: 15px; 
+      padding: 40px; 
+      text-align: center; 
+      color: white; 
+      background: rgba(255,255,255,0.1); 
+      backdrop-filter: blur(10px);
+      margin-bottom: 20px; 
+      cursor: pointer; 
+      transition: all 0.3s ease;
+    }
+    .upload-box:hover { background: rgba(255,255,255,0.2); transform: translateY(-2px); }
+    .upload-box.dragover { background: rgba(255,255,255,0.3); border-color: #fff; }
+    
+    .card { 
+      background: rgba(255,255,255,0.95); 
+      backdrop-filter: blur(10px);
+      border-radius: 15px; 
+      padding: 25px; 
+      margin: 20px 0; 
+      box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+    
     #fileList { margin: 10px 0; }
-    .file-item { font-size: 14px; margin: 5px 0; }
-    .preview img { max-width: 100%; margin: 10px 0; border-radius: 8px; }
-    .log { background: #e3f2fd; padding: 10px; border-radius: 6px; margin: 15px 0; font-size: 14px; max-height: 200px; overflow-y: auto; display: none; }
-    .section { display: none; margin-top: 20px; }
-    .btn { padding: 10px 15px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; margin: 5px; }
-    .btn-primary { background: #1976d2; color: #fff; }
-    .btn-secondary { background: #ccc; color: #333; }
-    textarea { width: 100%; height: 80px; margin-top: 10px; }
-
-    /* Spinner */
-    .spinner {
+    .file-item { 
+      font-size: 14px; 
+      margin: 8px 0; 
+      padding: 10px; 
+      background: rgba(255,255,255,0.1); 
+      border-radius: 8px; 
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .file-status { font-size: 12px; opacity: 0.8; }
+    
+    .preview img { max-width: 100%; margin: 10px 0; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+    
+    .log { 
+      background: rgba(255,255,255,0.1); 
+      color: white;
+      padding: 15px; 
+      border-radius: 10px; 
+      margin: 15px 0; 
+      font-size: 14px; 
+      max-height: 250px; 
+      overflow-y: auto; 
       display: none;
-      border: 4px solid #f3f3f3;
-      border-top: 4px solid #1976d2;
+      font-family: 'Courier New', monospace;
+    }
+    
+    .section { display: none; }
+    
+    .btn { 
+      padding: 12px 24px; 
+      border: none; 
+      border-radius: 25px; 
+      cursor: pointer; 
+      font-size: 14px; 
+      margin: 8px; 
+      transition: all 0.3s ease;
+      font-weight: 600;
+    }
+    .btn-primary { 
+      background: linear-gradient(45deg, #667eea, #764ba2); 
+      color: white; 
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6); }
+    .btn-secondary { background: #f8f9fa; color: #495057; border: 1px solid #dee2e6; }
+    .btn-secondary:hover { background: #e9ecef; }
+    
+    select, textarea { 
+      width: 100%; 
+      padding: 12px; 
+      margin-top: 10px; 
+      border: 1px solid #ddd; 
+      border-radius: 8px; 
+      font-size: 14px;
+    }
+    textarea { height: 80px; resize: vertical; }
+
+    /* Spinner migliorato */
+    .spinner-container {
+      display: none;
+      text-align: center;
+      margin: 20px 0;
+    }
+    .spinner {
+      border: 4px solid rgba(255,255,255,0.3);
+      border-top: 4px solid #667eea;
       border-radius: 50%;
-      width: 30px;
-      height: 30px;
+      width: 40px;
+      height: 40px;
       animation: spin 1s linear infinite;
-      margin: 15px auto;
+      margin: 0 auto 15px;
     }
     @keyframes spin { 100% { transform: rotate(360deg); } }
+    
+    .progress-bar {
+      width: 100%;
+      height: 6px;
+      background: rgba(255,255,255,0.3);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #667eea, #764ba2);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    /* Strategia OCR indicator */
+    .ocr-strategy {
+      display: inline-block;
+      padding: 4px 12px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 15px;
+      font-size: 12px;
+      color: white;
+      margin-left: 10px;
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+      .container { padding: 15px; }
+      .card { padding: 20px; }
+      .btn { padding: 10px 20px; margin: 5px; }
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>🩺 Assistente Referti Medici</h1>
-    <p>Carica uno o più referti (PDF, immagini, DOCX, ecc.) per estrarre il testo e poi avvia l’analisi.</p>
+    <p class="subtitle">Carica referti medici per estrazione testo intelligente e analisi AI</p>
 
     <div id="uploadBox" class="upload-box">
-      Clicca o trascina qui i tuoi file
-      <input type="file" id="fileInput" multiple style="display:none" />
+      <div style="font-size: 48px; margin-bottom: 10px;">📄</div>
+      <strong>Clicca o trascina qui i tuoi file</strong>
+      <div style="margin-top: 10px; font-size: 14px; opacity: 0.8;">
+        PDF, immagini (PNG, JPG), DOCX, Excel supportati
+      </div>
+      <input type="file" id="fileInput" multiple accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx,.txt" style="display:none" />
     </div>
+
+    <!-- Strategia OCR -->
+    <div id="ocrStrategy" style="text-align: center; color: white; margin-bottom: 20px; display: none;">
+      Strategia OCR: <span id="strategyText" class="ocr-strategy">Rilevamento...</span>
+    </div>
+
     <div id="fileList"></div>
     <div id="preview" class="preview"></div>
 
-    <div id="spinner" class="spinner"></div>
-    <div id="logBox" class="log"></div>
-
-    <div id="results" class="section">
-      <h3>📄 Testo estratto</h3>
-      <pre id="fullText"></pre>
-      <h3>⚙️ Scegli tipo di analisi</h3>
-      <select id="promptType">
-        <option value="simple">Riassunto semplice</option>
-        <option value="intermediate">Analisi intermedia</option>
-        <option value="detailed">Analisi dettagliata</option>
-        <option value="custom">Prompt personalizzato</option>
-      </select>
-      <textarea id="customPrompt" placeholder="Inserisci prompt personalizzato (opzionale)"></textarea>
-      <button id="analyzeBtn" class="btn btn-primary">Avvia analisi</button>
+    <div id="spinnerContainer" class="spinner-container">
+      <div class="spinner"></div>
+      <div style="color: white; font-weight: 500;" id="spinnerText">Elaborazione in corso...</div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
     </div>
 
-    <div id="summarySection" class="section">
-      <h3>✅ Riassunto</h3>
-      <pre id="summaryText"></pre>
-      <button id="downloadBtn" class="btn btn-primary">Scarica Word</button>
-      <button id="resetBtn" class="btn btn-secondary">Nuovo upload</button>
+    <div id="logBox" class="log"></div>
+
+    <div id="results" class="section card">
+      <h3>📄 Testo estratto</h3>
+      <pre id="fullText" style="background: #f8f9fa; padding: 15px; border-radius: 8px; max-height: 300px; overflow-y: auto; white-space: pre-wrap;"></pre>
+      
+      <h3>⚙️ Scegli tipo di analisi</h3>
+      <select id="promptType">
+        <option value="simple">🔍 Riassunto semplice (per pazienti)</option>
+        <option value="intermediate">📊 Analisi intermedia (parametri + diagnosi)</option>
+        <option value="detailed">🏥 Analisi dettagliata (tecnico-medica)</option>
+        <option value="custom">✏️ Prompt personalizzato</option>
+      </select>
+      <textarea id="customPrompt" placeholder="Inserisci il tuo prompt personalizzato (solo se hai selezionato 'Prompt personalizzato')"></textarea>
+      <button id="analyzeBtn" class="btn btn-primary">🧠 Avvia analisi AI</button>
+    </div>
+
+    <div id="summarySection" class="section card">
+      <h3>✅ Riassunto AI</h3>
+      <div id="summaryText" style="background: #f8f9fa; padding: 20px; border-radius: 8px; line-height: 1.6;"></div>
+      <div style="text-align: center; margin-top: 20px;">
+        <button id="downloadBtn" class="btn btn-primary">📥 Scarica Word</button>
+        <button id="resetBtn" class="btn btn-secondary">🔄 Nuovo upload</button>
+      </div>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script>
+    // Elements
     const fileInput = document.getElementById("fileInput");
     const uploadBox = document.getElementById("uploadBox");
     const fileList = document.getElementById("fileList");
@@ -86,50 +219,134 @@
     const promptType = document.getElementById("promptType");
     const customPrompt = document.getElementById("customPrompt");
     const analyzeBtn = document.getElementById("analyzeBtn");
-    const spinner = document.getElementById("spinner");
+    const spinnerContainer = document.getElementById("spinnerContainer");
+    const spinnerText = document.getElementById("spinnerText");
+    const progressFill = document.getElementById("progressFill");
+    const ocrStrategy = document.getElementById("ocrStrategy");
+    const strategyText = document.getElementById("strategyText");
 
     let extractedText = "";
     let useClientOCR = false;
+    let currentTaskId = null;
 
     // Spinner helpers
-    function showSpinner() { spinner.style.display = "block"; }
-    function hideSpinner() { spinner.style.display = "none"; }
+    function showSpinner(text = "Elaborazione in corso...") { 
+      spinnerContainer.style.display = "block"; 
+      spinnerText.textContent = text;
+    }
+    function hideSpinner() { spinnerContainer.style.display = "none"; }
+    
+    function updateProgress(percent) {
+      progressFill.style.width = percent + "%";
+    }
 
     // Logging helper
     function log(msg) {
+      const timestamp = new Date().toLocaleTimeString();
       logBox.style.display = "block";
-      logBox.innerHTML += "🔹 " + msg + "<br>";
+      logBox.innerHTML += `<div>[${timestamp}] ${msg}</div>`;
       logBox.scrollTop = logBox.scrollHeight;
+      console.log(`[Referto App] ${msg}`);
     }
 
-    // Benchmark OCR (decide client vs server)
+    // 🧠 STRATEGIA OCR: Benchmark per decidere client vs server
     async function decideOCRStrategy() {
-      const start = performance.now();
-      await Tesseract.recognize(new Blob(["TEST OCR"], {type:"text/plain"}), "eng");
-      const time = performance.now() - start;
-      useClientOCR = time < 800; // threshold
-      log(`Strategia OCR: ${useClientOCR ? "Client" : "Server"}`);
+      try {
+        ocrStrategy.style.display = "block";
+        strategyText.textContent = "Rilevamento prestazioni...";
+        
+        const start = performance.now();
+        
+        // Test veloce con immagine minuscola
+        const canvas = document.createElement('canvas');
+        canvas.width = 100;
+        canvas.height = 50;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, 100, 50);
+        ctx.fillStyle = 'black';
+        ctx.font = '16px Arial';
+        ctx.fillText('TEST', 20, 30);
+        
+        const testBlob = await new Promise(resolve => canvas.toBlob(resolve));
+        await Tesseract.recognize(testBlob, "eng", {
+          logger: () => {} // Silent
+        });
+        
+        const benchmarkTime = performance.now() - start;
+        
+        // Decisione basata su performance + connessione
+        const connection = navigator.connection;
+        const isSlowConnection = connection && (connection.effectiveType === 'slow-2g' || connection.effectiveType === '2g');
+        
+        useClientOCR = benchmarkTime < 1000 && !isSlowConnection;
+        
+        strategyText.textContent = useClientOCR ? "🖥️ Client-side OCR" : "☁️ Server-side OCR";
+        strategyText.style.background = useClientOCR ? "rgba(76, 175, 80, 0.8)" : "rgba(33, 150, 243, 0.8)";
+        
+        log(`📊 Benchmark OCR: ${benchmarkTime.toFixed(0)}ms - Strategia: ${useClientOCR ? "Client" : "Server"}`);
+        
+      } catch (error) {
+        log(`⚠️ Errore benchmark OCR, usando server: ${error.message}`);
+        useClientOCR = false;
+        strategyText.textContent = "☁️ Server-side OCR (fallback)";
+        strategyText.style.background = "rgba(255, 152, 0, 0.8)";
+      }
     }
 
-    // Upload Box logic
+    // Upload Box interactions
     uploadBox.addEventListener("click", () => fileInput.click());
-    uploadBox.addEventListener("dragover", e => { e.preventDefault(); uploadBox.style.background="#e3f2fd"; });
-    uploadBox.addEventListener("dragleave", e => { uploadBox.style.background="#fff"; });
-    uploadBox.addEventListener("drop", e => { e.preventDefault(); fileInput.files = e.dataTransfer.files; handleFiles(); });
+    
+    uploadBox.addEventListener("dragover", e => { 
+      e.preventDefault(); 
+      uploadBox.classList.add("dragover");
+    });
+    
+    uploadBox.addEventListener("dragleave", () => {
+      uploadBox.classList.remove("dragover");
+    });
+    
+    uploadBox.addEventListener("drop", e => { 
+      e.preventDefault(); 
+      uploadBox.classList.remove("dragover");
+      fileInput.files = e.dataTransfer.files; 
+      handleFiles(); 
+    });
+    
     fileInput.addEventListener("change", handleFiles);
 
+    // Handle file selection
     function handleFiles() {
       const files = fileInput.files;
       fileList.innerHTML = "";
       preview.innerHTML = "";
       extractedText = "";
+      
       if (!files.length) return;
-      [...files].forEach(file => {
+
+      // Validation
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      let totalSize = 0;
+      
+      for (let file of files) {
+        totalSize += file.size;
+        if (totalSize > maxSize) {
+          alert("⚠️ File troppo grandi! Limite: 10MB totali");
+          return;
+        }
+      }
+
+      // Display files
+      [...files].forEach((file, index) => {
         const item = document.createElement("div");
         item.className = "file-item";
-        item.textContent = `${file.name} (${Math.round(file.size/1024)} KB)`;
+        item.innerHTML = `
+          <span>📄 ${file.name}</span>
+          <span class="file-status">${Math.round(file.size/1024)} KB</span>
+        `;
         fileList.appendChild(item);
 
+        // Preview images
         if (file.type.startsWith("image/")) {
           const reader = new FileReader();
           reader.onload = e => {
@@ -140,102 +357,222 @@
           reader.readAsDataURL(file);
         }
       });
+
       uploadFiles(files);
     }
 
-    // Upload to server or OCR client-side
+    // 🚀 Upload e elaborazione files
     async function uploadFiles(files) {
-      log("Caricamento file...");
-      showSpinner();
+      log("🔄 Avvio elaborazione file...");
+      showSpinner("Preparazione file...");
+      updateProgress(0);
+      
       try {
-        if (useClientOCR) {
-          log("OCR lato client...");
-          let combined = "";
-          for (let file of files) {
-            if (file.type.startsWith("image/")) {
-              const { data: { text } } = await Tesseract.recognize(file, "ita+eng");
-              combined += text + "\n";
-            } else {
-              const formData = new FormData();
-              formData.append("file", file);
-              const resp = await fetch("/upload", { method:"POST", body: formData });
-              const result = await safeJson(resp, "estrazione lato server fallback");
-              combined += result.full_text || "";
-            }
+        if (useClientOCR && [...files].every(f => f.type.startsWith("image/"))) {
+          // OCR CLIENT-SIDE per immagini
+          log("🖥️ Elaborazione OCR lato client...");
+          showSpinner("OCR in corso (client-side)...");
+          
+          let combinedText = "";
+          const totalFiles = files.length;
+          
+          for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            updateProgress((i / totalFiles) * 90);
+            
+            log(`📸 OCR su ${file.name}...`);
+            const { data: { text } } = await Tesseract.recognize(file, "ita+eng", {
+              logger: m => {
+                if (m.status === 'recognizing text') {
+                  updateProgress(((i / totalFiles) + (m.progress / totalFiles)) * 90);
+                }
+              }
+            });
+            
+            combinedText += `--- ${file.name} ---\n${text}\n\n`;
           }
-          extractedText = combined;
-          fullTextEl.textContent = extractedText;
-          resultsEl.style.display = "block";
+          
+          extractedText = combinedText.trim();
+          updateProgress(100);
+          displayResults();
+          
         } else {
+          // OCR SERVER-SIDE
+          log("☁️ Invio al server per elaborazione...");
+          showSpinner("Upload al server...");
+          
           const formData = new FormData();
           [...files].forEach(f => formData.append("file", f));
-          const resp = await fetch("/upload", { method:"POST", body: formData });
-          const result = await safeJson(resp, "estrazione server");
-          extractedText = result.full_text;
-          fullTextEl.textContent = extractedText;
-          resultsEl.style.display = "block";
+          
+          const response = await fetch("/upload", { 
+            method: "POST", 
+            body: formData 
+          });
+          
+          const result = await safeJson(response, "upload server");
+          
+          if (result.task_id) {
+            currentTaskId = result.task_id;
+            await pollTaskStatus(result.task_id);
+          } else if (result.full_text) {
+            // Risposta sincrona (fallback)
+            extractedText = result.full_text;
+            displayResults();
+          }
         }
-      } catch (err) {
-        log("❌ Errore upload: " + err.message);
+        
+      } catch (error) {
+        log(`❌ Errore elaborazione: ${error.message}`);
+        alert(`Errore: ${error.message}`);
       } finally {
         hideSpinner();
       }
     }
 
-    // Analyze button
+    // 🔄 Polling status per elaborazione server
+    async function pollTaskStatus(taskId) {
+      showSpinner("Elaborazione server in corso...");
+      const maxAttempts = 20; // 60 secondi max
+      
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        try {
+          await new Promise(resolve => setTimeout(resolve, 3000)); // 3s delay
+          
+          const response = await fetch(`/check_status/${taskId}`);
+          const status = await safeJson(response, "status check");
+          
+          log(`📊 Status check ${attempt + 1}: ${status.status}`);
+          updateProgress(Math.min((attempt / maxAttempts) * 90 + 10, 90));
+          
+          if (status.status === 'completed') {
+            extractedText = status.result || "Nessun testo estratto";
+            updateProgress(100);
+            displayResults();
+            return;
+          } else if (status.status === 'error') {
+            throw new Error(status.result || "Errore server sconosciuto");
+          } else if (status.status === 'timeout') {
+            throw new Error("Timeout: file troppo complesso. Prova con immagini più piccole.");
+          }
+          
+        } catch (error) {
+          log(`❌ Errore polling: ${error.message}`);
+          throw error;
+        }
+      }
+      
+      throw new Error("Timeout: elaborazione troppo lunga");
+    }
+
+    // 📊 Mostra risultati
+    function displayResults() {
+      log("✅ Testo estratto con successo!");
+      fullTextEl.textContent = extractedText || "Nessun testo estratto";
+      resultsEl.style.display = "block";
+      hideSpinner();
+    }
+
+    // 🧠 Analisi AI
     analyzeBtn.addEventListener("click", async () => {
-      if (!extractedText) {
-        log("Nessun testo da analizzare.");
+      if (!extractedText.trim()) {
+        alert("Nessun testo da analizzare.");
         return;
       }
-      log("Avvio analisi...");
-      showSpinner();
+      
+      log("🧠 Avvio analisi AI...");
+      showSpinner("Analisi AI in corso...");
+      
       try {
         const formData = new FormData();
         formData.append("extracted_text", extractedText);
         formData.append("prompt_type", promptType.value);
         formData.append("custom_prompt", customPrompt.value);
 
-        const resp = await fetch("/analyze", { method:"POST", body: formData });
-        const result = await safeJson(resp, "analisi");
-        summaryText.textContent = result.summary || "Errore analisi";
+        const response = await fetch("/analyze", { 
+          method: "POST", 
+          body: formData 
+        });
+        
+        const result = await safeJson(response, "analisi AI");
+        
+        summaryText.innerHTML = result.summary.replace(/\n/g, '<br>') || "Errore analisi";
         summarySection.style.display = "block";
-        downloadBtn.style.display = "inline-block";
-        resetBtn.style.display = "inline-block";
-      } catch (err) {
-        log("❌ Errore analisi: " + err.message);
+        
+        log("✅ Analisi completata!");
+        
+      } catch (error) {
+        log(`❌ Errore analisi: ${error.message}`);
+        alert(`Errore analisi: ${error.message}`);
       } finally {
         hideSpinner();
       }
     });
 
-    // Safe JSON parse
+    // Utility: Safe JSON parsing
     async function safeJson(response, context) {
       try {
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`HTTP ${response.status}: ${text}`);
+        }
         return await response.json();
-      } catch (err) {
+      } catch (error) {
+        if (error.message.includes('HTTP')) throw error;
         const text = await response.text();
-        throw new Error(`Risposta non JSON (${context}): ${text}`);
+        throw new Error(`Risposta non valida (${context}): ${text.substring(0, 100)}...`);
       }
     }
 
-    // Reset
+    // 🔄 Reset
     resetBtn.addEventListener("click", async () => {
-      await fetch("/reset", { method:"POST" });
-      fileInput.value = "";
-      fileList.innerHTML = "";
-      preview.innerHTML = "";
-      fullTextEl.textContent = "";
-      summaryText.textContent = "";
-      summarySection.style.display = "none";
-      resultsEl.style.display = "none";
-      logBox.innerHTML = "";
-      logBox.style.display = "none";
-      extractedText = "";
-      log("Pronto per nuovo upload.");
+      try {
+        await fetch("/reset", { method: "POST" });
+        
+        // Reset UI
+        fileInput.value = "";
+        fileList.innerHTML = "";
+        preview.innerHTML = "";
+        fullTextEl.textContent = "";
+        summaryText.innerHTML = "";
+        summarySection.style.display = "none";
+        resultsEl.style.display = "none";
+        logBox.innerHTML = "";
+        logBox.style.display = "none";
+        ocrStrategy.style.display = "none";
+        
+        extractedText = "";
+        currentTaskId = null;
+        updateProgress(0);
+        
+        log("🔄 Reset completato - Pronto per nuovo upload");
+        
+        // Re-detect OCR strategy
+        setTimeout(decideOCRStrategy, 500);
+        
+      } catch (error) {
+        log(`❌ Errore reset: ${error.message}`);
+      }
     });
 
-    decideOCRStrategy();
+    // Download button
+    downloadBtn.addEventListener("click", () => {
+      window.open("/download-summary", "_blank");
+    });
+
+    // Custom prompt toggle
+    promptType.addEventListener("change", () => {
+      customPrompt.style.display = promptType.value === "custom" ? "block" : "none";
+    });
+
+    // 🎯 Initialize
+    document.addEventListener("DOMContentLoaded", () => {
+      log("🚀 Assistente Referti inizializzato");
+      customPrompt.style.display = "none";
+      
+      // Detect OCR strategy on load
+      setTimeout(decideOCRStrategy, 1000);
+    });
+
   </script>
 </body>
 </html>
