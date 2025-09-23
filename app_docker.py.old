@@ -77,93 +77,95 @@ def preprocess_image_for_ocr(image_path, fast_mode=True):
         logger.error(f"Errore preprocessing: {e}")
         return None
 
-def ocr_image_file(image_path, lang="ita+eng"):
-    """
-    OCR su immagine con preprocessing (usa preprocess_image_for_ocr se disponibile).
-    Restituisce stringa (vuota se errore).
-    """
-    try:
-        # usa la funzione di preprocessing già presente nel file
-        processed = preprocess_image_for_ocr(image_path, fast_mode=True)
-        if processed is not None:
-            # processed è un numpy array (grayscale) -> converti in PIL
-            pil_img = Image.fromarray(processed)
-        else:
-            pil_img = Image.open(image_path)
-        text = pytesseract.image_to_string(pil_img, lang=lang)
-        return text or ""
-    except Exception as e:
-        logger.error(f"OCR image error: {e}")
-        return ""
-
-
-
 # --- Estrazione testo OTTIMIZZATA ---
 def extract_text_from_file_async(file_path, task_id):
-    """
-    Estrae testo da singolo file (PDF testuale o PDF scansione -> OCR pagina per pagina).
-    Aggiorna processing_status[task_id] con {'status','progress','result'}.
-    """
-    processing_status[task_id] = {"status": "processing", "progress": 0, "start_time": time.time()}
+    """Versione asincrona con timeout handling"""
     try:
+        processing_status[task_id] = {"status": "processing", "progress": 0}
         ext = os.path.splitext(file_path)[1].lower()
-        result_text = ""
-
+        text = ""
+        
         if ext == ".pdf":
-            # apri PDF con PyMuPDF (fitz)
             doc = fitz.open(file_path)
             total_pages = len(doc)
-            for i, page in enumerate(doc):
-                # aggiorna progress parziale
-                processing_status[task_id]["progress"] = int((i / max(total_pages,1)) * 60)
-
-                # prova estrazione testo digitale
-                try:
-                    page_text = page.get_text("text") or ""
-                except Exception:
-                    page_text = ""
-
-                if page_text.strip():
-                    result_text += f"--- Pagina {i+1} ---\n{page_text}\n\n"
+            
+            for page_num, page in enumerate(doc, start=1):
+                if time.time() - processing_status[task_id].get("start_time", 0) > 25:  # Timeout 25s
+                    processing_status[task_id]["status"] = "timeout"
+                    return "⚠️ Timeout: elaborazione troppo lenta. Prova con immagini più piccole."
+                
+                processing_status[task_id]["progress"] = (page_num / total_pages) * 100
+                
+                page_text = page.get_text().strip()
+                if page_text and len(page_text) > 10:
+                    text += page_text + "\n"
+                    logger.info(f"Pagina {page_num}: testo digitale estratto")
                 else:
-                    # pagina immagine: rendi immagine ad alta risoluzione e OCR
-                    pix = page.get_pixmap(dpi=300)
-                    temp_img = os.path.join(UPLOAD_FOLDER, f"ocr_{os.path.basename(file_path)}_p{i+1}.png")
-                    pix.save(temp_img)
-                    ocr_t = ocr_image_file(temp_img)
-                    result_text += f"--- Pagina {i+1} (OCR) ---\n{ocr_t}\n\n"
-                    # pulizia immagine temporanea
-                    try:
-                        os.remove(temp_img)
-                    except Exception:
-                        pass
+                    # OCR veloce per Render
+                    image_list = page.get_images(full=True)
+                    for img_index, img in enumerate(image_list[:2], start=1):  # Max 2 img per pagina
+                        xref = img[0]
+                        base_image = doc.extract_image(xref)
+                        image_bytes = base_image["image"]
+                        img_ext = base_image["ext"]
+                        img_path = os.path.join(UPLOAD_FOLDER, f"temp_img_{task_id}.{img_ext}")
+                        
+                        with open(img_path, "wb") as f:
+                            f.write(image_bytes)
 
-                processing_status[task_id]["progress"] = int(((i + 1) / max(total_pages,1)) * 90)
+                        # OCR veloce
+                        preprocessed = preprocess_image_for_ocr(img_path, fast_mode=True)
+                        config = r"--oem 1 --psm 6 -l ita"  # Solo italiano per velocità
+                        
+                        if preprocessed is not None:
+                            page_text = pytesseract.image_to_string(preprocessed, config=config)
+                        else:
+                            pil_img = Image.open(img_path)
+                            if pil_img.mode != "RGB":
+                                pil_img = pil_img.convert("RGB")
+                            page_text = pytesseract.image_to_string(pil_img, config=config)
 
+                        text += page_text + "\n"
+                        if os.path.exists(img_path):
+                            os.remove(img_path)
+                        break  # Solo la prima immagine per velocità
             doc.close()
 
-        elif ext in [".png", ".jpg", ".jpeg", ".tiff", ".bmp"]:
-            # immagine singola -> OCR
-            result_text = ocr_image_file(file_path)
-            processing_status[task_id]["progress"] = 100
+        elif ext in [".png", ".jpg", ".jpeg"]:
+            # OCR su immagine con timeout
+            preprocessed = preprocess_image_for_ocr(file_path, fast_mode=True)
+            config = r"--oem 1 --psm 6 -l ita"
+            
+            if preprocessed is not None:
+                text = pytesseract.image_to_string(preprocessed, config=config)
+            else:
+                image = Image.open(file_path)
+                if image.mode != "RGB":
+                    image = image.convert("RGB")
+                text = pytesseract.image_to_string(image, config=config)
 
         elif ext == ".txt":
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                result_text = f.read()
-            processing_status[task_id]["progress"] = 100
+            with open(file_path, "r", encoding="utf-8") as f:
+                text = f.read()
 
-        else:
-            result_text = f"[Formato non supportato: {ext}]"
-            processing_status[task_id]["progress"] = 100
+        elif ext == ".docx":
+            doc = Document(file_path)
+            for para in doc.paragraphs:
+                text += para.text + "\n"
+
+        elif ext == ".xlsx":
+            xls = pd.read_excel(file_path, sheet_name=None)
+            for sheet_name, df in xls.items():
+                text += f"\n--- Foglio: {sheet_name} ---\n"
+                text += df.to_string(index=False)
 
         processing_status[task_id]["status"] = "completed"
-        processing_status[task_id]["result"] = result_text
-
+        processing_status[task_id]["result"] = text.strip() if text else "Nessun testo estratto"
+        
     except Exception as e:
-        logger.error(traceback.format_exc())
         processing_status[task_id]["status"] = "error"
-        processing_status[task_id]["result"] = str(e)
-
+        processing_status[task_id]["result"] = f"Errore: {str(e)}"
+        logger.error(traceback.format_exc())
 
 # --- Prompt generator ---
 def get_prompt(base_type, custom, text):
@@ -255,37 +257,20 @@ def upload_file():
         return jsonify({"error": f"Errore upload: {str(e)}"}), 500
 
 def extract_text_from_files_thread(filepaths, task_id):
-    """
-    Thread di coordinamento: elabora ogni file con extract_text_from_file_async e
-    aggrega i risultati nel task principale task_id.
-    """
+    """Thread per elaborazione asincrona"""
     try:
         texts = []
-        total_files = len(filepaths)
-        for idx, filepath in enumerate(filepaths):
-            file_task_id = f"{task_id}_file_{idx}"
-            # esegui sincronamente l'estrazione (funzione aggiorna processing_status[file_task_id])
-            extract_text_from_file_async(filepath, file_task_id)
-
-            # recupera risultato (già impostato dalla funzione)
-            res_info = processing_status.get(file_task_id, {})
-            texts.append(res_info.get("result", ""))
-
-            # rimuovi file temporaneo
-            try:
-                os.remove(filepath)
-            except Exception:
-                logger.warning(f"Impossibile rimuovere file temporaneo: {filepath}")
-
-            # aggiorna progresso complessivo
-            processing_status[task_id]["progress"] = int(((idx + 1) / max(total_files,1)) * 100)
-
+        for filepath in filepaths:
+            extract_text_from_file_async(filepath, f"{task_id}_file")
+            if f"{task_id}_file" in processing_status:
+                texts.append(processing_status[f"{task_id}_file"].get("result", ""))
+            os.remove(filepath)  # Pulisci file temporaneo
+        
         full_text = "\n\n".join(texts)
         processing_status[task_id]["status"] = "completed"
         processing_status[task_id]["result"] = full_text
-
+        
     except Exception as e:
-        logger.error(traceback.format_exc())
         processing_status[task_id]["status"] = "error"
         processing_status[task_id]["result"] = str(e)
 
