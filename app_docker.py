@@ -195,7 +195,7 @@ def get_prompt(base_type, custom, text):
 # --- Summarization OTTIMIZZATA ---
 def generate_summary(prompt):
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-2.5-flash-lite-preview-09-2025")
         # Timeout più basso per Gemini
         response = model.generate_content(prompt)
         return response.text
